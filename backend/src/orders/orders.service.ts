@@ -1,46 +1,76 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderItemDto, UpdatePaymentDto } from './dto/update-order-item.dto';
+import {
+  UpdateOrderItemDto,
+} from './dto/update-order-item.dto';
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateOrderDto, buyerId: number) {
-    const seller = await this.prisma.user.findFirst({
-      where: { id: dto.sellerId, role: 'SHOP_OWNER' },
-    });
-    if (!seller) throw new NotFoundException('فروشنده یافت نشد');
+  async create(userId: number, dto: CreateOrderDto) {
+    const productIds = [...new Set(dto.items.map((item) => item.productId))];
 
-    const productIds = dto.items.map(i => i.productId);
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, price: true },
+      select: {
+        id: true,
+        name: true,
+        imageUrl: true,
+        price: true,
+        quantityMain: true,
+      },
     });
-    const priceMap = new Map(products.map(p => [p.id, p.price || 0]));
 
-    let totalAmount = 0;
-    const orderItemsData = dto.items.map(item => {
-      const unitPrice = priceMap.get(item.productId) ?? 0;
-      totalAmount += item.quantity * unitPrice;
+    const productMap = new Map(
+      products.map((product) => [product.id, product]),
+    );
+
+    const orderItems = dto.items.map((item) => {
+      const product = productMap.get(item.productId);
+
+      if (!product) {
+        throw new NotFoundException(
+          `محصول با شناسه ${item.productId} یافت نشد`,
+        );
+      }
+
+      if (
+        item.quantity <= 0 ||
+        item.quantity > product.quantityMain
+      ) {
+        throw new BadRequestException(
+          `تعداد درخواستی محصول "${product.name}" معتبر نیست`,
+        );
+      }
+
       return {
-        productId: item.productId,
+        productId: product.id,
+        productName: product.name,
+        productImageUrl: product.imageUrl ?? null,
+        unitPrice: product.price,
         quantity: item.quantity,
-        unitPrice,
-        note: item.note,
+        note: item.note?.trim() || null,
       };
     });
 
+    const totalAmount = orderItems.reduce(
+      (total, item) => total + Number(item.unitPrice) * item.quantity,
+      0,
+    );
+
     return this.prisma.order.create({
       data: {
+        userId,
         sellerId: dto.sellerId,
-        userId: buyerId,
-        notes: dto.notes,
+        notes: dto.notes?.trim() || null,
         totalAmount,
-        paidAmount: 0,
-        paymentStatus: 'UNPAID',
-        items: { create: orderItemsData },
+        items: { create: orderItems },
       },
       include: {
         seller: { select: { id: true, name: true, phone: true } },
@@ -101,13 +131,15 @@ export class OrdersService {
     });
   }
 
-  // --- New admin methods ---
-
-  async updateOrderItem(orderId: number, itemId: number, dto: UpdateOrderItemDto) {
+  async updateOrderItem(
+    orderId: number,
+    itemId: number,
+    dto: UpdateOrderItemDto,
+  ) {
     const item = await this.prisma.orderItem.findUnique({
       where: { id: itemId },
-      include: { order: true },
     });
+
     if (!item || item.orderId !== orderId) {
       throw new NotFoundException('آیتم سفارش یافت نشد');
     }
@@ -121,16 +153,7 @@ export class OrdersService {
       },
     });
 
-    // Recalculate total amount of the order
-    const allItems = await this.prisma.orderItem.findMany({
-      where: { orderId },
-    });
-    const newTotal = allItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
-    await this.prisma.order.update({
-      where: { id: orderId },
-      data: { totalAmount: newTotal },
-    });
-
+    await this.recalculateOrderTotal(orderId);
     return this.findOne(orderId);
   }
 
@@ -138,29 +161,33 @@ export class OrdersService {
     const item = await this.prisma.orderItem.findUnique({
       where: { id: itemId },
     });
+
     if (!item || item.orderId !== orderId) {
       throw new NotFoundException('آیتم سفارش یافت نشد');
     }
 
     await this.prisma.orderItem.delete({ where: { id: itemId } });
-
-    const remaining = await this.prisma.orderItem.findMany({ where: { orderId } });
-    const newTotal = remaining.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
-    await this.prisma.order.update({
-      where: { id: orderId },
-      data: { totalAmount: newTotal },
-    });
+    await this.recalculateOrderTotal(orderId);
 
     return { success: true };
   }
 
   async updatePayment(orderId: number, paidAmount: number) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
-    if (!order) throw new NotFoundException('سفارش یافت نشد');
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException('سفارش یافت نشد');
+    }
 
     let paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID' = 'UNPAID';
-    if (paidAmount >= order.totalAmount) paymentStatus = 'PAID';
-    else if (paidAmount > 0) paymentStatus = 'PARTIAL';
+
+    if (paidAmount >= order.totalAmount) {
+      paymentStatus = 'PAID';
+    } else if (paidAmount > 0) {
+      paymentStatus = 'PARTIAL';
+    }
 
     return this.prisma.order.update({
       where: { id: orderId },
@@ -173,14 +200,24 @@ export class OrdersService {
       where: { role: 'SHOP_OWNER' },
       select: { id: true, name: true, phone: true },
     });
+
     const summary = [];
+
     for (const seller of sellers) {
       const orders = await this.prisma.order.findMany({
         where: { sellerId: seller.id },
         select: { totalAmount: true, paidAmount: true },
       });
-      const totalAmount = orders.reduce((s, o) => s + o.totalAmount, 0);
-      const totalPaid = orders.reduce((s, o) => s + o.paidAmount, 0);
+
+      const totalAmount = orders.reduce(
+        (sum, order) => sum + order.totalAmount,
+        0,
+      );
+      const totalPaid = orders.reduce(
+        (sum, order) => sum + order.paidAmount,
+        0,
+      );
+
       summary.push({
         ...seller,
         totalAmount,
@@ -188,6 +225,24 @@ export class OrdersService {
         outstanding: totalAmount - totalPaid,
       });
     }
+
     return summary;
+  }
+
+  private async recalculateOrderTotal(orderId: number) {
+    const items = await this.prisma.orderItem.findMany({
+      where: { orderId },
+      select: { quantity: true, unitPrice: true },
+    });
+
+    const totalAmount = items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0,
+    );
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { totalAmount },
+    });
   }
 }

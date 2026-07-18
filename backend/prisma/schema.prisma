@@ -93,12 +93,24 @@ model Order {
 }
 
 model OrderItem {
-  id         Int     @id @default(autoincrement())
-  orderId    Int
-  order      Order   @relation(fields: [orderId], references: [id])
-  productId  Int
-  product    Product @relation(fields: [productId], references: [id])
-  quantity   Int
-  unitPrice  Float   // NEW – snapshot at order creation
-  note       String?
+  id Int @id @default(autoincrement())
+
+  orderId Int
+  order   Order @relation(fields: [orderId],references: [id],    onDelete: Cascade)
+
+  // محصول ممکن است بعداً حذف شود
+  productId Int?
+  product   Product? @relation(fields: [productId],references: [id],onDelete: SetNull)
+
+  // اطلاعات ثابت در لحظه ثبت سفارش
+  productName     String
+  productImageUrl String?
+  unitPrice       Float
+  quantity        Int
+  note            String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
 }

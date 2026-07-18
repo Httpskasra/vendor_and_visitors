@@ -235,7 +235,7 @@ export default function BuyerDashboard() {
                             key={item.id}
                             className="flex items-center justify-between">
                             <span className="text-gray-700">
-                              {item.product?.name}
+                              {item.productName || item.product?.name || "محصول نامشخص"}
                             </span>
                             <div className="flex items-center gap-2">
                               {item.note && (

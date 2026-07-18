@@ -30,7 +30,7 @@ export class OrdersController {
         throw new ForbiddenException('شما فقط می‌توانید برای فروشگاه خود سفارش ثبت کنید');
       }
     }
-    return this.ordersService.create(dto, buyerId);
+    return this.ordersService.create(buyerId, dto);
   }
 
   @Get()

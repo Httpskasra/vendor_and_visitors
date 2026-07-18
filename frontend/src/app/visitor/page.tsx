@@ -1,7 +1,7 @@
 // app/visitor/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -75,11 +75,14 @@ export default function VisitorOrderPage() {
 
   const [searchParams, setSearchParams] =
     useState<SearchParams>(DEFAULT_SEARCH);
-  const [draftSearch, setDraftSearch] =
-    useState<SearchParams>(DEFAULT_SEARCH);
+  const [draftSearch, setDraftSearch] = useState<SearchParams>(DEFAULT_SEARCH);
   const [showFilters, setShowFilters] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
-
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const currentUser = getUser();
 
@@ -112,7 +115,38 @@ export default function VisitorOrderPage() {
       void searchProducts(searchParams);
     }
   }, [step]);
+  useEffect(() => {
+    const target = loadMoreRef.current;
 
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+
+        if (
+          firstEntry.isIntersecting &&
+          hasNextPage &&
+          nextCursor !== null &&
+          !loadingMore &&
+          !loadingProducts
+        ) {
+          void searchProducts(searchParams, nextCursor);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "300px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasNextPage, nextCursor, loadingMore, loadingProducts, searchParams]);
   async function loadSellers() {
     setLoadingSellers(true);
 
@@ -127,50 +161,100 @@ export default function VisitorOrderPage() {
     }
   }
 
-  async function searchProducts(params: SearchParams) {
-    setLoadingProducts(true);
+  async function searchProducts(params: SearchParams, cursor?: number) {
+    const isLoadMore = cursor !== undefined;
+
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoadingProducts(true);
+    }
 
     try {
       const query = new URLSearchParams();
 
       if (params.name) query.set("name", params.name);
+
       if (params.categoryMain) {
         query.set("categoryMain", params.categoryMain);
       }
+
       if (params.categorySecond) {
         query.set("categorySecond", params.categorySecond);
       }
-      if (params.unitType) query.set("unitType", params.unitType);
-      if (params.priceMin) query.set("priceMin", params.priceMin);
-      if (params.priceMax) query.set("priceMax", params.priceMax);
+
+      if (params.unitType) {
+        query.set("unitType", params.unitType);
+      }
+
+      if (params.priceMin) {
+        query.set("priceMin", params.priceMin);
+      }
+
+      if (params.priceMax) {
+        query.set("priceMax", params.priceMax);
+      }
+
       if (params.quantityMin) {
         query.set("quantityMin", params.quantityMin);
       }
+
       if (params.quantityMax) {
         query.set("quantityMax", params.quantityMax);
       }
 
       query.set("sortBy", params.sortBy);
       query.set("sortOrder", params.sortOrder);
-      query.set("limit", "50");
+      query.set("limit", "20");
 
-      const { data } = await api.get(
-        `/products/search?${query.toString()}`,
-      );
+      if (cursor !== undefined) {
+        query.set("cursor", String(cursor));
+      }
 
-      const result = Array.isArray(data?.data) ? data.data : [];
-      setProducts(result);
+      const response = await api.get(`/products/search?${query.toString()}`);
 
-      if (result.length === 0) {
-        toast("محصولی با این شرایط یافت نشد", {
+      const result =
+        Array.isArray(response.data?.data) ? response.data.data : [];
+
+      const pagination = response.data?.pagination;
+      const total = Number(pagination?.total ?? 0);
+
+      if (isLoadMore) {
+        setProducts((currentProducts) => {
+          const productMap = new Map(
+            currentProducts.map((product) => [product.id, product]),
+          );
+
+          result.forEach((product: any) => {
+            productMap.set(product.id, product);
+          });
+
+          return Array.from(productMap.values());
+        });
+      } else {
+        setProducts(result);
+      }
+
+      setNextCursor(pagination?.nextCursor ?? null);
+      setHasNextPage(Boolean(pagination?.hasNextPage));
+      setTotalProducts(total);
+      if (!isLoadMore && result.length === 0) {
+        toast("هیچ محصولی با این شرایط یافت نشد", {
           icon: "🔍",
         });
       }
     } catch (err) {
-      toast.error("خطا در جستجوی محصولات");
+      toast.error(
+        isLoadMore ? "خطا در دریافت محصولات بیشتر" : "خطا در جستجوی محصولات",
+      );
+
       console.error(err);
     } finally {
-      setLoadingProducts(false);
+      if (isLoadMore) {
+        setLoadingMore(false);
+      } else {
+        setLoadingProducts(false);
+      }
     }
   }
 
@@ -208,20 +292,21 @@ export default function VisitorOrderPage() {
         setStep("select-products");
       }
     } catch (err: any) {
-      toast.error(
-        err.response?.data?.message || "خطا در ایجاد فروشنده",
-      );
+      toast.error(err.response?.data?.message || "خطا در ایجاد فروشنده");
     } finally {
       setCreatingSeller(false);
     }
   }
 
   function getProductStock(product: any) {
-    const stock = Number(
-      product.quantity ?? product.quantityMain ?? 0,
-    );
+    const main = Number(product.quantityMain ?? 0);
 
-    return Number.isFinite(stock) && stock > 0 ? stock : 0;
+    const bonus = Number(product.quantityBonus ?? 0);
+
+    const stock =
+      (Number.isFinite(main) ? main : 0) + (Number.isFinite(bonus) ? bonus : 0);
+
+    return stock > 0 ? stock : 0;
   }
 
   function updateCart(
@@ -229,10 +314,7 @@ export default function VisitorOrderPage() {
     requestedQuantity: number,
     maxQuantity: number,
   ) {
-    const nextQuantity = Math.max(
-      0,
-      Math.min(requestedQuantity, maxQuantity),
-    );
+    const nextQuantity = Math.max(0, Math.min(requestedQuantity, maxQuantity));
 
     setCart((currentCart) => {
       const nextCart = { ...currentCart };
@@ -248,11 +330,7 @@ export default function VisitorOrderPage() {
   }
 
   const cartTotalItems = useMemo(
-    () =>
-      Object.values(cart).reduce(
-        (sum, quantity) => sum + quantity,
-        0,
-      ),
+    () => Object.values(cart).reduce((sum, quantity) => sum + quantity, 0),
     [cart],
   );
 
@@ -290,12 +368,10 @@ export default function VisitorOrderPage() {
     setSubmitting(true);
 
     try {
-      const items = Object.entries(cart).map(
-        ([productId, quantity]) => ({
-          productId: Number(productId),
-          quantity,
-        }),
-      );
+      const items = Object.entries(cart).map(([productId, quantity]) => ({
+        productId: Number(productId),
+        quantity,
+      }));
 
       await api.post("/orders", {
         sellerId: selectedSeller.id,
@@ -312,9 +388,7 @@ export default function VisitorOrderPage() {
       setProducts([]);
       setStep("select-seller");
     } catch (err: any) {
-      toast.error(
-        err.response?.data?.message || "خطا در ثبت سفارش",
-      );
+      toast.error(err.response?.data?.message || "خطا در ثبت سفارش");
     } finally {
       setSubmitting(false);
     }
@@ -323,13 +397,14 @@ export default function VisitorOrderPage() {
   function resetFilters() {
     setDraftSearch(DEFAULT_SEARCH);
     setSearchParams(DEFAULT_SEARCH);
+    setNextCursor(null);
+    setHasNextPage(false);
+
     void searchProducts(DEFAULT_SEARCH);
   }
 
   function handleLogout() {
-    const confirmed = window.confirm(
-      "آیا از خروج از سیستم مطمئن هستید؟",
-    );
+    const confirmed = window.confirm("آیا از خروج از سیستم مطمئن هستید؟");
 
     if (!confirmed) return;
 
@@ -359,9 +434,7 @@ export default function VisitorOrderPage() {
 
   const selectedCartProducts = Object.entries(cart)
     .map(([productId, quantity]) => {
-      const product = products.find(
-        (item) => item.id === Number(productId),
-      );
+      const product = products.find((item) => item.id === Number(productId));
 
       if (!product) return null;
 
@@ -379,13 +452,13 @@ export default function VisitorOrderPage() {
 
   const hasActiveFilters = Boolean(
     draftSearch.name ||
-      draftSearch.categoryMain ||
-      draftSearch.categorySecond ||
-      draftSearch.unitType ||
-      draftSearch.priceMin ||
-      draftSearch.priceMax ||
-      draftSearch.quantityMin ||
-      draftSearch.quantityMax,
+    draftSearch.categoryMain ||
+    draftSearch.categorySecond ||
+    draftSearch.unitType ||
+    draftSearch.priceMin ||
+    draftSearch.priceMax ||
+    draftSearch.quantityMin ||
+    draftSearch.quantityMax,
   );
 
   if (!user) return null;
@@ -460,22 +533,18 @@ export default function VisitorOrderPage() {
 
                   <div
                     className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                      isActive
-                        ? "bg-blue-700 text-white ring-4 ring-blue-100"
-                        : isComplete
-                          ? "bg-green-600 text-white"
-                          : "bg-white text-gray-400 ring-1 ring-blue-200"
+                      isActive ? "bg-blue-700 text-white ring-4 ring-blue-100"
+                      : isComplete ? "bg-green-600 text-white"
+                      : "bg-white text-gray-400 ring-1 ring-blue-200"
                     }`}>
                     {isComplete ? "✓" : item.number}
                   </div>
 
                   <span
                     className={`mt-2 text-center text-[11px] font-bold sm:text-sm ${
-                      isActive
-                        ? "text-blue-700"
-                        : isComplete
-                          ? "text-green-700"
-                          : "text-gray-400"
+                      isActive ? "text-blue-700"
+                      : isComplete ? "text-green-700"
+                      : "text-gray-400"
                     }`}>
                     {item.label}
                   </span>
@@ -499,8 +568,8 @@ export default function VisitorOrderPage() {
                   انتخاب فروشنده
                 </h2>
                 <p className="mt-2 max-w-lg text-sm leading-7 text-blue-100 sm:text-base">
-                  فروشنده موردنظر را با نام یا شماره موبایل پیدا
-                  کنید یا یک فروشنده جدید بسازید.
+                  فروشنده موردنظر را با نام یا شماره موبایل پیدا کنید یا یک
+                  فروشنده جدید بسازید.
                 </p>
               </div>
             </div>
@@ -515,9 +584,7 @@ export default function VisitorOrderPage() {
                   placeholder="نام فروشنده یا شماره موبایل..."
                   className="input-field w-full pr-10"
                   value={searchQuery}
-                  onChange={(event) =>
-                    setSearchQuery(event.target.value)
-                  }
+                  onChange={(event) => setSearchQuery(event.target.value)}
                 />
               </div>
 
@@ -530,9 +597,9 @@ export default function VisitorOrderPage() {
               </button>
             </div>
 
-            {loadingSellers ? (
+            {loadingSellers ?
               <LoadingState text="در حال بارگذاری فروشندگان..." />
-            ) : filteredSellers.length === 0 ? (
+            : filteredSellers.length === 0 ?
               <div className="rounded-3xl bg-white px-4 py-12 text-center shadow-sm">
                 <div className="mb-3 text-5xl">🏪</div>
                 <p className="text-lg font-bold text-gray-600">
@@ -542,8 +609,7 @@ export default function VisitorOrderPage() {
                   نام یا شماره موبایل دیگری جستجو کنید.
                 </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {filteredSellers.map((seller) => (
                   <button
                     key={seller.id}
@@ -574,7 +640,7 @@ export default function VisitorOrderPage() {
                   </button>
                 ))}
               </div>
-            )}
+            }
 
             <div className="text-center">
               <Link
@@ -597,9 +663,7 @@ export default function VisitorOrderPage() {
                     🏪
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-blue-200">
-                      فروشنده انتخاب‌شده
-                    </p>
+                    <p className="text-xs text-blue-200">فروشنده انتخاب‌شده</p>
                     <p className="mt-1 break-words text-lg font-black sm:text-xl">
                       {selectedSeller.name}
                     </p>
@@ -624,7 +688,11 @@ export default function VisitorOrderPage() {
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
+
                   setSearchParams(draftSearch);
+                  setNextCursor(null);
+                  setHasNextPage(false);
+
                   void searchProducts(draftSearch);
                 }}>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-3">
@@ -655,13 +723,11 @@ export default function VisitorOrderPage() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowFilters((current) => !current)
-                    }
+                    onClick={() => setShowFilters((current) => !current)}
                     className={`relative min-h-11 rounded-xl border-2 px-4 py-2 font-bold transition-all ${
-                      showFilters
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                      showFilters ?
+                        "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     }`}>
                     🎛️ فیلترها
                     {hasActiveFilters && (
@@ -766,16 +832,13 @@ export default function VisitorOrderPage() {
                           onChange={(event) =>
                             setDraftSearch({
                               ...draftSearch,
-                              sortBy:
-                                event.target.value as SortField,
+                              sortBy: event.target.value as SortField,
                             })
                           }>
                           <option value="name">نام</option>
                           <option value="price">قیمت</option>
                           <option value="quantityMain">موجودی</option>
-                          <option value="categoryMain">
-                            دسته‌بندی
-                          </option>
+                          <option value="categoryMain">دسته‌بندی</option>
                         </select>
 
                         <select
@@ -784,8 +847,7 @@ export default function VisitorOrderPage() {
                           onChange={(event) =>
                             setDraftSearch({
                               ...draftSearch,
-                              sortOrder:
-                                event.target.value as SortOrder,
+                              sortOrder: event.target.value as SortOrder,
                             })
                           }>
                           <option value="asc">صعودی</option>
@@ -806,7 +868,7 @@ export default function VisitorOrderPage() {
 
                 <div className="flex flex-wrap gap-2 text-xs font-bold">
                   <span className="rounded-full bg-white px-3 py-1.5 text-gray-500 shadow-sm">
-                    {products.length.toLocaleString("fa-IR")} محصول
+                    {totalProducts.toLocaleString("fa-IR")} محصول
                   </span>
 
                   {selectedProductsCount > 0 && (
@@ -818,9 +880,9 @@ export default function VisitorOrderPage() {
               </div>
             )}
 
-            {loadingProducts ? (
+            {loadingProducts ?
               <LoadingState text="در حال بارگذاری محصولات..." />
-            ) : products.length === 0 ? (
+            : products.length === 0 ?
               <div className="rounded-3xl bg-white px-4 py-14 text-center shadow-sm">
                 <div className="mb-4 text-6xl">📦</div>
                 <p className="text-xl font-bold text-gray-600">
@@ -830,8 +892,7 @@ export default function VisitorOrderPage() {
                   عبارت جستجو یا فیلترها را تغییر دهید.
                 </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {products.map((product) => {
                   const quantity = cart[product.id] || 0;
                   const stock = getProductStock(product);
@@ -843,9 +904,9 @@ export default function VisitorOrderPage() {
                     <article
                       key={product.id}
                       className={`group relative flex min-w-0 flex-col overflow-hidden rounded-3xl border bg-white shadow-sm transition-all ${
-                        isSelected
-                          ? "border-blue-500 ring-2 ring-blue-200"
-                          : "border-gray-100 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
+                        isSelected ?
+                          "border-blue-500 ring-2 ring-blue-200"
+                        : "border-gray-100 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
                       } ${!inStock ? "opacity-70" : ""}`}>
                       {isSelected && (
                         <div className="absolute right-3 top-3 z-10 rounded-full bg-blue-700 px-3 py-1 text-xs font-bold text-white shadow">
@@ -854,31 +915,28 @@ export default function VisitorOrderPage() {
                       )}
 
                       <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
-                        {product.imageUrl ? (
+                        {product.imageUrl ?
                           <img
                             src={product.imageUrl}
                             alt={product.name}
                             loading="lazy"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
-                        ) : (
-                          <div className="flex h-full flex-col items-center justify-center text-gray-300">
+                        : <div className="flex h-full flex-col items-center justify-center text-gray-300">
                             <span className="text-5xl">📦</span>
-                            <span className="mt-2 text-xs">
-                              بدون تصویر
-                            </span>
+                            <span className="mt-2 text-xs">بدون تصویر</span>
                           </div>
-                        )}
+                        }
 
                         <span
                           className={`absolute bottom-3 left-3 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ${
-                            inStock
-                              ? "bg-green-100/95 text-green-800"
-                              : "bg-red-100/95 text-red-700"
+                            inStock ?
+                              "bg-green-100/95 text-green-800"
+                            : "bg-red-100/95 text-red-700"
                           }`}>
-                          {inStock
-                            ? `موجودی ${stock.toLocaleString("fa-IR")}`
-                            : "ناموجود"}
+                          {inStock ?
+                            `موجودی ${stock.toLocaleString("fa-IR")}`
+                          : "ناموجود"}
                         </span>
                       </div>
 
@@ -910,13 +968,11 @@ export default function VisitorOrderPage() {
 
                           <div className="mt-4 flex items-end justify-between gap-3 border-t border-gray-100 pt-4">
                             <div>
-                              <p className="text-xs text-gray-400">
-                                قیمت واحد
-                              </p>
+                              <p className="text-xs text-gray-400">قیمت واحد</p>
                               <p className="mt-1 text-lg font-black text-blue-700">
-                                {Number(
-                                  product.price || 0,
-                                ).toLocaleString("fa-IR")}
+                                {Number(product.price || 0).toLocaleString(
+                                  "fa-IR",
+                                )}
                                 <span className="mr-1 text-xs font-medium text-gray-500">
                                   تومان
                                 </span>
@@ -925,13 +981,10 @@ export default function VisitorOrderPage() {
 
                             {quantity > 0 && (
                               <div className="text-left">
-                                <p className="text-xs text-gray-400">
-                                  جمع
-                                </p>
+                                <p className="text-xs text-gray-400">جمع</p>
                                 <p className="mt-1 text-sm font-bold text-gray-700">
                                   {(
-                                    Number(product.price || 0) *
-                                    quantity
+                                    Number(product.price || 0) * quantity
                                   ).toLocaleString("fa-IR")}
                                 </p>
                               </div>
@@ -940,33 +993,26 @@ export default function VisitorOrderPage() {
                         </div>
 
                         <div className="mt-4">
-                          {!inStock ? (
+                          {!inStock ?
                             <button
                               type="button"
                               disabled
                               className="h-12 w-full cursor-not-allowed rounded-2xl bg-gray-100 font-bold text-gray-400">
                               این محصول موجود نیست
                             </button>
-                          ) : quantity === 0 ? (
+                          : quantity === 0 ?
                             <button
                               type="button"
-                              onClick={() =>
-                                updateCart(product.id, 1, stock)
-                              }
+                              onClick={() => updateCart(product.id, 1, stock)}
                               className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 font-bold text-white transition-colors hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200">
                               <span className="text-xl">＋</span>
                               افزودن به سفارش
                             </button>
-                          ) : (
-                            <div className="flex h-12 items-center overflow-hidden rounded-2xl border-2 border-blue-200 bg-blue-50">
+                          : <div className="flex h-12 items-center overflow-hidden rounded-2xl border-2 border-blue-200 bg-blue-50">
                               <button
                                 type="button"
                                 onClick={() =>
-                                  updateCart(
-                                    product.id,
-                                    quantity - 1,
-                                    stock,
-                                  )
+                                  updateCart(product.id, quantity - 1, stock)
                                 }
                                 className="flex h-full w-14 items-center justify-center text-2xl font-bold text-red-600 transition-colors hover:bg-red-100">
                                 −
@@ -984,18 +1030,14 @@ export default function VisitorOrderPage() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  updateCart(
-                                    product.id,
-                                    quantity + 1,
-                                    stock,
-                                  )
+                                  updateCart(product.id, quantity + 1, stock)
                                 }
                                 disabled={hasReachedLimit}
                                 className="flex h-full w-14 items-center justify-center text-2xl font-bold text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-30">
                                 ＋
                               </button>
                             </div>
-                          )}
+                          }
 
                           {hasReachedLimit && inStock && (
                             <p className="mt-2 text-center text-xs font-medium text-blue-700">
@@ -1008,8 +1050,23 @@ export default function VisitorOrderPage() {
                   );
                 })}
               </div>
-            )}
+            }
+            <div
+              ref={loadMoreRef}
+              className="flex min-h-24 items-center justify-center">
+              {loadingMore && (
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-700 border-t-transparent" />
+                  در حال دریافت محصولات بیشتر...
+                </div>
+              )}
 
+              {!hasNextPage && products.length > 0 && !loadingMore && (
+                <p className="text-sm text-gray-400">
+                  همه محصولات نمایش داده شدند
+                </p>
+              )}
+            </div>
             <div className="pb-4 text-center">
               <button
                 type="button"
@@ -1086,17 +1143,16 @@ export default function VisitorOrderPage() {
                       className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white">
-                          {product.imageUrl ? (
+                          {product.imageUrl ?
                             <img
                               src={product.imageUrl}
                               alt={product.name}
                               className="h-full w-full object-cover"
                             />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-2xl text-gray-300">
+                          : <div className="flex h-full items-center justify-center text-2xl text-gray-300">
                               📦
                             </div>
-                          )}
+                          }
                         </div>
 
                         <div className="min-w-0">
@@ -1104,11 +1160,8 @@ export default function VisitorOrderPage() {
                             {product.name}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
-                            {Number(
-                              product.price || 0,
-                            ).toLocaleString("fa-IR")}{" "}
-                            تومان ×{" "}
-                            {quantity.toLocaleString("fa-IR")}
+                            {Number(product.price || 0).toLocaleString("fa-IR")}{" "}
+                            تومان × {quantity.toLocaleString("fa-IR")}
                           </p>
                         </div>
                       </div>
@@ -1161,14 +1214,12 @@ export default function VisitorOrderPage() {
                 onClick={submitOrder}
                 disabled={submitting}
                 className="btn-success mt-6 min-h-14 w-full text-lg disabled:cursor-not-allowed disabled:opacity-60">
-                {submitting ? (
+                {submitting ?
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     در حال ثبت سفارش...
                   </span>
-                ) : (
-                  "🛒 ثبت نهایی سفارش"
-                )}
+                : "🛒 ثبت نهایی سفارش"}
               </button>
             </div>
           </section>
@@ -1176,39 +1227,37 @@ export default function VisitorOrderPage() {
       </main>
 
       {/* Sticky cart bar */}
-      {step === "select-products" &&
-        selectedProductsCount > 0 && (
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] backdrop-blur sm:p-4">
-            <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-xl">
-                  🛒
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-gray-800">
-                    {selectedProductsCount.toLocaleString("fa-IR")} قلم،
-                    {" "}
-                    {cartTotalItems.toLocaleString("fa-IR")} عدد
-                  </p>
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    مبلغ تقریبی:{" "}
-                    <span className="font-bold text-blue-700">
-                      {estimatedTotal.toLocaleString("fa-IR")} تومان
-                    </span>
-                  </p>
-                </div>
+      {step === "select-products" && selectedProductsCount > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] backdrop-blur sm:p-4">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-xl">
+                🛒
               </div>
 
-              <button
-                type="button"
-                onClick={() => setStep("confirm")}
-                className="btn-primary min-h-12 w-full px-6 text-base sm:w-auto sm:min-w-64">
-                مشاهده و تأیید سفارش
-              </button>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-800">
+                  {selectedProductsCount.toLocaleString("fa-IR")} قلم،{" "}
+                  {cartTotalItems.toLocaleString("fa-IR")} عدد
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  مبلغ تقریبی:{" "}
+                  <span className="font-bold text-blue-700">
+                    {estimatedTotal.toLocaleString("fa-IR")} تومان
+                  </span>
+                </p>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setStep("confirm")}
+              className="btn-primary min-h-12 w-full px-6 text-base sm:w-auto sm:min-w-64">
+              مشاهده و تأیید سفارش
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Add seller modal */}
       {showSellerModal && (
@@ -1307,9 +1356,7 @@ export default function VisitorOrderPage() {
                   onClick={createSeller}
                   disabled={creatingSeller}
                   className="btn-primary min-h-12 disabled:cursor-not-allowed disabled:opacity-60">
-                  {creatingSeller
-                    ? "در حال ایجاد..."
-                    : "ثبت فروشنده"}
+                  {creatingSeller ? "در حال ایجاد..." : "ثبت فروشنده"}
                 </button>
               </div>
             </div>

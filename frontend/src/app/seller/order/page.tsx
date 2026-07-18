@@ -1,7 +1,7 @@
 // app/seller/order/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -56,6 +56,13 @@ export default function SellerOrderPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalProducts, setTotalProducts] = useState(0);
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     const currentUser = getUser();
 
@@ -73,60 +80,163 @@ export default function SellerOrderPage() {
     void searchProducts(DEFAULT_SEARCH);
   }, [router]);
 
-  async function searchProducts(params: SearchParams) {
-    setSearching(true);
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+
+        if (
+          firstEntry.isIntersecting &&
+          hasNextPage &&
+          nextCursor !== null &&
+          !loadingMore &&
+          !searching
+        ) {
+          void searchProducts(searchParams, nextCursor);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "300px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [
+    hasNextPage,
+    nextCursor,
+    loadingMore,
+    searching,
+    searchParams,
+  ]);
+
+  async function searchProducts(
+    params: SearchParams,
+    cursor?: number,
+  ) {
+    const isLoadMore = cursor !== undefined;
+
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setSearching(true);
+    }
 
     try {
       const query = new URLSearchParams();
 
-      if (params.name) query.set("name", params.name);
+      if (params.name) {
+        query.set("name", params.name);
+      }
+
       if (params.categoryMain) {
         query.set("categoryMain", params.categoryMain);
       }
+
       if (params.categorySecond) {
         query.set("categorySecond", params.categorySecond);
       }
-      if (params.unitType) query.set("unitType", params.unitType);
-      if (params.priceMin) query.set("priceMin", params.priceMin);
-      if (params.priceMax) query.set("priceMax", params.priceMax);
+
+      if (params.unitType) {
+        query.set("unitType", params.unitType);
+      }
+
+      if (params.priceMin) {
+        query.set("priceMin", params.priceMin);
+      }
+
+      if (params.priceMax) {
+        query.set("priceMax", params.priceMax);
+      }
+
       if (params.quantityMin) {
         query.set("quantityMin", params.quantityMin);
       }
+
       if (params.quantityMax) {
         query.set("quantityMax", params.quantityMax);
       }
 
       query.set("sortBy", params.sortBy);
       query.set("sortOrder", params.sortOrder);
-      query.set("limit", "50");
+      query.set("limit", "20");
 
-      const { data } = await api.get(
+      if (cursor !== undefined) {
+        query.set("cursor", String(cursor));
+      }
+
+      const response = await api.get(
         `/products/search?${query.toString()}`,
       );
 
-      const result = Array.isArray(data?.data) ? data.data : [];
-      setProducts(result);
+      const result = Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
 
-      if (result.length === 0) {
+      const pagination = response.data?.pagination;
+      const total = Number(pagination?.total ?? 0);
+
+      if (isLoadMore) {
+        setProducts((currentProducts) => {
+          const productMap = new Map(
+            currentProducts.map((product) => [
+              product.id,
+              product,
+            ]),
+          );
+
+          result.forEach((product: any) => {
+            productMap.set(product.id, product);
+          });
+
+          return Array.from(productMap.values());
+        });
+      } else {
+        setProducts(result);
+      }
+
+      setNextCursor(pagination?.nextCursor ?? null);
+      setHasNextPage(Boolean(pagination?.hasNextPage));
+      setTotalProducts(total);
+
+      if (!isLoadMore && result.length === 0) {
         toast("هیچ محصولی با این شرایط یافت نشد", {
           icon: "🔍",
         });
       }
     } catch (err) {
-      toast.error("خطا در جستجوی محصولات");
+      toast.error(
+        isLoadMore
+          ? "خطا در دریافت محصولات بیشتر"
+          : "خطا در جستجوی محصولات",
+      );
+
       console.error(err);
     } finally {
-      setSearching(false);
-      setLoading(false);
+      if (isLoadMore) {
+        setLoadingMore(false);
+      } else {
+        setSearching(false);
+        setLoading(false);
+      }
     }
   }
 
   function getProductStock(product: any) {
-    const stock = Number(
-      product.quantity ?? product.quantityMain ?? 0,
-    );
+    const stock = Number(product.quantityMain ?? 0);
 
-    return Number.isFinite(stock) && stock > 0 ? stock : 0;
+    return Number.isFinite(stock) && stock > 0
+      ? stock
+      : 0;
   }
 
   function updateCart(
@@ -217,6 +327,10 @@ export default function SellerOrderPage() {
   function resetFilters() {
     setDraftSearch(DEFAULT_SEARCH);
     setSearchParams(DEFAULT_SEARCH);
+    setNextCursor(null);
+    setHasNextPage(false);
+    setTotalProducts(0);
+
     void searchProducts(DEFAULT_SEARCH);
   }
 
@@ -323,7 +437,12 @@ export default function SellerOrderPage() {
           <form
             onSubmit={(event) => {
               event.preventDefault();
+
               setSearchParams(draftSearch);
+              setNextCursor(null);
+              setHasNextPage(false);
+              setTotalProducts(0);
+
               void searchProducts(draftSearch);
             }}>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-3">
@@ -500,8 +619,8 @@ export default function SellerOrderPage() {
               محصولات
             </h2>
             <p className="text-sm text-gray-500">
-              {products.length.toLocaleString("fa-IR")} محصول نمایش
-              داده می‌شود
+              {products.length.toLocaleString("fa-IR")} از{" "}
+              {totalProducts.toLocaleString("fa-IR")} محصول نمایش داده شده
             </p>
           </div>
         )}
@@ -697,6 +816,25 @@ export default function SellerOrderPage() {
               );
             })}
           </section>
+        )}
+
+        {products.length > 0 && (
+          <div
+            ref={loadMoreRef}
+            className="flex min-h-24 items-center justify-center">
+            {loadingMore && (
+              <div className="flex items-center gap-3 text-sm text-gray-500">
+                <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-700 border-t-transparent" />
+                در حال دریافت محصولات بیشتر...
+              </div>
+            )}
+
+            {!hasNextPage && !loadingMore && (
+              <p className="text-sm text-gray-400">
+                همه محصولات نمایش داده شدند
+              </p>
+            )}
+          </div>
         )}
 
         {/* Order notes */}

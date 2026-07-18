@@ -310,7 +310,8 @@ export default function SellerDashboard() {
                                     className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="min-w-0 flex-1">
                                       <p className="break-words font-medium leading-6 text-gray-800">
-                                        {item.product?.name ||
+                                        {item.productName ||
+                                          item.product?.name ||
                                           "محصول نامشخص"}
                                       </p>
 

@@ -1359,7 +1359,7 @@ export default function AdminDashboard() {
                                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                         <div className="min-w-0 flex-1">
                                           <p className="break-words font-semibold text-gray-800">
-                                            {item.product?.name}
+                                            {item.productName || item.product?.name || "محصول نامشخص"}
                                           </p>
 
                                           {isEditing ? (

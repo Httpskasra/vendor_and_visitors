@@ -317,7 +317,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
           {order.items?.map((item: any, idx: number) => (
             <View key={idx} style={styles.tableRow}>
               <Text style={styles.colProduct}>
-                {rtlText(item.product?.name || "-")}
+                {rtlText(item.productName || item.product?.name || "-")}
               </Text>
 
               <Text style={styles.colQty}>

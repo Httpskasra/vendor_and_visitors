@@ -1,114 +1,512 @@
-// backend/src/upload/upload.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import * as XLSX from 'xlsx';
-import { normalizePersian } from 'src/utils/persian-normalize';
+import { normalizePersian } from '../utils/persian-normalize';
 
 interface ExcelRow {
   'نام كالا'?: string;
   'نام کالا'?: string;
+
   'نوع واحد كلي'?: string;
   'نوع واحد کلی'?: string;
+
   'نوع واحد جزء'?: string;
+  'نوع واحد جز'?: string;
+
   'تعداد در واحد'?: number | string;
+
   'گروه کالا'?: string;
+  'گروه كالا'?: string;
+
   'گروه کالا دوم'?: string;
+  'گروه كالا دوم'?: string;
+
   'تعداد'?: string | number;
+
+  // هر دو شکل عربی و فارسی
   'قيمت اول'?: number | string;
+  'قیمت اول'?: number | string;
 }
 
-function parseQuantity(raw: string | number | undefined): { main: number; bonus: number } {
-  if (raw === undefined || raw === null) return { main: 0, bonus: 0 };
-  const str = String(raw).trim();
-  const match = str.match(/^(\d+)\+(\d+)$/);
-  if (match) return { main: parseInt(match[1]), bonus: parseInt(match[2]) };
-  const num = parseInt(str);
-  return { main: isNaN(num) ? 0 : num, bonus: 0 };
+interface ParsedQuantity {
+  main: number;
+  bonus: number;
+}
+
+function parseQuantity(
+  raw: string | number | undefined,
+): ParsedQuantity {
+  if (raw === undefined || raw === null) {
+    return {
+      main: 0,
+      bonus: 0,
+    };
+  }
+
+  const value = String(raw).trim();
+
+  const bonusMatch = value.match(
+    /^(\d+)\s*\+\s*(\d+)$/,
+  );
+
+  if (bonusMatch) {
+    return {
+      main: Number.parseInt(bonusMatch[1], 10),
+      bonus: Number.parseInt(bonusMatch[2], 10),
+    };
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  return {
+    main: Number.isNaN(parsed) ? 0 : parsed,
+    bonus: 0,
+  };
+}
+
+function parseNumber(
+  raw: string | number | undefined,
+  fallback = 0,
+): number {
+  if (
+    raw === undefined ||
+    raw === null ||
+    String(raw).trim() === ''
+  ) {
+    return fallback;
+  }
+
+  const normalizedValue = String(raw)
+    .replace(/,/g, '')
+    .replace(/٬/g, '')
+    .replace(/\s/g, '')
+    .trim();
+
+  const parsed = Number(normalizedValue);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : fallback;
+}
+
+function getProductName(row: ExcelRow): string {
+  return String(
+    row['نام كالا'] ??
+      row['نام کالا'] ??
+      '',
+  ).trim();
+}
+
+function getPrice(row: ExcelRow): number {
+  return parseNumber(
+    row['قيمت اول'] ??
+      row['قیمت اول'],
+    0,
+  );
+}
+
+function getMainCategory(row: ExcelRow): string {
+  return String(
+    row['گروه کالا'] ??
+      row['گروه كالا'] ??
+      'عمومی',
+  ).trim() || 'عمومی';
+}
+
+function getSecondCategory(
+  row: ExcelRow,
+): string | null {
+  const category = String(
+    row['گروه کالا دوم'] ??
+      row['گروه كالا دوم'] ??
+      '',
+  ).trim();
+
+  return category || null;
 }
 
 @Injectable()
 export class UploadService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
-  async processExcel(file: Express.Multer.File) {
-    if (!file) throw new BadRequestException('فایلی انتخاب نشده است');
-
-    const wb = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheetName = wb.SheetNames[0];
-    const sheet = wb.Sheets[sheetName];
-    const rows: ExcelRow[] = XLSX.utils.sheet_to_json(sheet);
-
-    if (!rows.length) throw new BadRequestException('فایل اکسل خالی است');
-
-    // Create new batch record
-    const batch = await this.prisma.uploadBatch.create({
-      data: { filename: file.originalname },
-    });
-
-    const productsToCreate = [];
-
-    for (const row of rows) {
-      const name = String(row['نام كالا'] || row['نام کالا'] || '').trim();
-      if (!name) continue;
-
-      // Find existing product by exact name (case-insensitive) from any batch
-      // We use the most recent batch to get the latest metadata
-      const existing = await this.prisma.product.findFirst({
-        where: { name: { equals: name, mode: 'insensitive' } },
-        orderBy: { batch: { uploadedAt: 'desc' } },
-      });
-
-      const { main, bonus } = parseQuantity(row['تعداد']);
-      
-      // Priority: use price from Excel, otherwise from existing product, otherwise 0
-      let price = 0;
-
-      if (
-        row['قيمت اول'] !== undefined &&
-        row['قيمت اول'] !== null &&
-        row['قيمت اول'] !== ''
-      ) {
-        const priceStr = String(row['قيمت اول']).replace(/,/g, '');
-
-        price = Number(priceStr);
-
-        if (isNaN(price)) price = 0;
-      } else if (existing?.price !== undefined && existing?.price !== null) {
-        price = existing.price;
-      } else {
-        price = 0;
-      }
-
-      productsToCreate.push({
-        batchId: batch.id,
-        name,
-        nameNormalized: normalizePersian(name),
-        unitType: String(row['نوع واحد كلي'] || row['نوع واحد کلی'] || '').trim(),
-        subUnitType: String(row['نوع واحد جزء'] || '').trim(),
-        countPerUnit: parseInt(String(row['تعداد در واحد'] || '1')) || 1,
-        // Use existing categories if present, otherwise take from Excel or default
-        categoryMain: existing?.categoryMain || String(row['گروه کالا'] || 'عمومی').trim(),
-        categorySecond: existing?.categorySecond || (row['گروه کالا دوم'] ? String(row['گروه کالا دوم']).trim() : null),
-        quantity: String(row['تعداد'] || '0'),
-        quantityMain: main,
-        quantityBonus: bonus,
-        price,
-        // Preserve image from existing product if any
-        imageUrl: existing?.imageUrl || null,
-      });
+  async processExcel(
+    file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException(
+        'فایلی انتخاب نشده است',
+      );
     }
 
-    if (productsToCreate.length === 0) {
-      throw new BadRequestException('هیچ محصول معتبری در فایل یافت نشد');
+    let workbook: XLSX.WorkBook;
+
+    try {
+      workbook = XLSX.read(file.buffer, {
+        type: 'buffer',
+      });
+    } catch {
+      throw new BadRequestException(
+        'فایل اکسل قابل خواندن نیست',
+      );
     }
 
-    await this.prisma.product.createMany({ data: productsToCreate });
+    const firstSheetName =
+      workbook.SheetNames[0];
 
-    return {
-      message: `${productsToCreate.length} محصول با موفقیت بارگذاری شد`,
-      batchId: batch.id,
-      count: productsToCreate.length,
-      preservedCount: productsToCreate.filter(p => p.imageUrl || p.categoryMain !== 'عمومی' || p.price > 0).length,
-    };
+    if (!firstSheetName) {
+      throw new BadRequestException(
+        'فایل اکسل هیچ Sheet معتبری ندارد',
+      );
+    }
+
+    const sheet =
+      workbook.Sheets[firstSheetName];
+
+    const rows =
+      XLSX.utils.sheet_to_json<ExcelRow>(
+        sheet,
+        {
+          defval: '',
+          raw: false,
+        },
+      );
+
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'فایل اکسل خالی است',
+      );
+    }
+
+    /*
+     * ابتدا تمام اطلاعات فایل را آماده می‌کنیم.
+     * تا قبل از معتبر شدن فایل، چیزی از دیتابیس حذف نمی‌شود.
+     */
+    const parsedProducts = rows
+      .map((row) => {
+        const name = getProductName(row);
+
+        if (!name) {
+          return null;
+        }
+
+        const normalizedName =
+          normalizePersian(name);
+
+        if (!normalizedName) {
+          return null;
+        }
+
+        const {
+          main,
+          bonus,
+        } = parseQuantity(row['تعداد']);
+
+        const rawQuantity = String(
+          row['تعداد'] ?? '0',
+        ).trim();
+
+        return {
+          name,
+          nameNormalized: normalizedName,
+
+          unitType: String(
+            row['نوع واحد كلي'] ??
+              row['نوع واحد کلی'] ??
+              '',
+          ).trim(),
+
+          subUnitType: String(
+            row['نوع واحد جزء'] ??
+              row['نوع واحد جز'] ??
+              '',
+          ).trim(),
+
+          countPerUnit: Math.max(
+            1,
+            Math.trunc(
+              parseNumber(
+                row['تعداد در واحد'],
+                1,
+              ),
+            ),
+          ),
+
+          categoryMain:
+            getMainCategory(row),
+
+          categorySecond:
+            getSecondCategory(row),
+
+          quantity: rawQuantity || '0',
+          quantityMain: main,
+          quantityBonus: bonus,
+
+          price: getPrice(row),
+        };
+      })
+      .filter(
+        (
+          product,
+        ): product is NonNullable<
+          typeof product
+        > => product !== null,
+      );
+
+    if (parsedProducts.length === 0) {
+      throw new BadRequestException(
+        'هیچ محصول معتبری در فایل یافت نشد',
+      );
+    }
+
+    /*
+     * جلوگیری از ثبت محصول تکراری در یک فایل.
+     * در صورت تکرار نام، آخرین سطر اکسل نگه داشته می‌شود.
+     */
+    const uniqueProductsMap = new Map<
+      string,
+      (typeof parsedProducts)[number]
+    >();
+
+    for (const product of parsedProducts) {
+      uniqueProductsMap.set(
+        product.nameNormalized,
+        product,
+      );
+    }
+
+    const uniqueProducts = Array.from(
+      uniqueProductsMap.values(),
+    );
+
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          /*
+           * فقط عکس محصولات قبلی را نگه می‌داریم.
+           * سایر اطلاعات از اکسل جدید خوانده می‌شود.
+           */
+          const oldProducts =
+            await tx.product.findMany({
+              where: {
+                imageUrl: {
+                  not: null,
+                },
+              },
+              select: {
+                name: true,
+                nameNormalized: true,
+                imageUrl: true,
+              },
+            });
+
+          const imageByNormalizedName =
+            new Map<string, string>();
+
+          for (const oldProduct of oldProducts) {
+            if (!oldProduct.imageUrl) {
+              continue;
+            }
+
+            const normalizedName =
+              oldProduct.nameNormalized ||
+              normalizePersian(
+                oldProduct.name,
+              );
+
+            /*
+             * در صورت وجود چند نسخه قدیمی،
+             * اولین عکس معتبر نگه داشته می‌شود.
+             */
+            if (
+              normalizedName &&
+              !imageByNormalizedName.has(
+                normalizedName,
+              )
+            ) {
+              imageByNormalizedName.set(
+                normalizedName,
+                oldProduct.imageUrl,
+              );
+            }
+          }
+
+          /*
+           * قبل از حذف محصولات، snapshot سفارش‌های قدیمی را کامل می‌کنیم.
+           * پس از حذف Product، تاریخچه سفارش دیگر به رابطه product وابسته نیست.
+           */
+          const linkedOrderItems = await tx.orderItem.findMany({
+            where: { productId: { not: null } },
+            select: {
+              id: true,
+              productName: true,
+              productImageUrl: true,
+              product: {
+                select: {
+                  name: true,
+                  imageUrl: true,
+                },
+              },
+            },
+          });
+
+          for (const item of linkedOrderItems) {
+            if (!item.product) continue;
+
+            const missingName = !item.productName?.trim();
+            const missingImage = !item.productImageUrl;
+
+            if (!missingName && !missingImage) continue;
+
+            await tx.orderItem.update({
+              where: { id: item.id },
+              data: {
+                ...(missingName && {
+                  productName: item.product.name,
+                }),
+                ...(missingImage && item.product.imageUrl && {
+                  productImageUrl: item.product.imageUrl,
+                }),
+              },
+            });
+          }
+
+          /*
+           * ابتدا محصولات حذف می‌شوند؛ چون به batch وابسته‌اند.
+           */
+          const deletedProducts =
+            await tx.product.deleteMany();
+
+          /*
+           * سپس batchهای قدیمی حذف می‌شوند.
+           */
+          const deletedBatches =
+            await tx.uploadBatch.deleteMany();
+
+          /*
+           * فقط یک batch جدید برای فایل فعلی ساخته می‌شود.
+           */
+          const newBatch =
+            await tx.uploadBatch.create({
+              data: {
+                filename:
+                  file.originalname,
+              },
+            });
+
+          let preservedImageCount = 0;
+
+          const productsToCreate:
+            Prisma.ProductCreateManyInput[] =
+            uniqueProducts.map(
+              (product) => {
+                const preservedImage =
+                  imageByNormalizedName.get(
+                    product.nameNormalized,
+                  ) ?? null;
+
+                if (preservedImage) {
+                  preservedImageCount++;
+                }
+
+                return {
+                  batchId: newBatch.id,
+
+                  name: product.name,
+                  nameNormalized:
+                    product.nameNormalized,
+
+                  unitType:
+                    product.unitType,
+
+                  subUnitType:
+                    product.subUnitType,
+
+                  countPerUnit:
+                    product.countPerUnit,
+
+                  /*
+                   * دسته‌بندی از فایل جدید گرفته می‌شود،
+                   * نه محصول قبلی.
+                   */
+                  categoryMain:
+                    product.categoryMain,
+
+                  categorySecond:
+                    product.categorySecond,
+
+                  quantity:
+                    product.quantity,
+
+                  quantityMain:
+                    product.quantityMain,
+
+                  quantityBonus:
+                    product.quantityBonus,
+
+                  /*
+                   * قیمت فقط از اکسل جدید می‌آید.
+                   */
+                  price: product.price,
+
+                  /*
+                   * تنها مقدار باقی‌مانده از محصولات قبلی.
+                   */
+                  imageUrl:
+                    preservedImage,
+                };
+              },
+            );
+
+          await tx.product.createMany({
+            data: productsToCreate,
+          });
+
+          return {
+            message:
+              'فایل اکسل با موفقیت جایگزین شد',
+
+            batchId: newBatch.id,
+
+            filename:
+              file.originalname,
+
+            receivedRows: rows.length,
+
+            importedCount:
+              productsToCreate.length,
+
+            duplicateRowsRemoved:
+              parsedProducts.length -
+              uniqueProducts.length,
+
+            preservedImageCount,
+
+            deletedOldProducts:
+              deletedProducts.count,
+
+            deletedOldBatches:
+              deletedBatches.count,
+          };
+        },
+        {
+          timeout: 120_000,
+        },
+      );
+    } catch (error) {
+      console.error(
+        'Excel replacement failed:',
+        error,
+      );
+
+      throw new BadRequestException(
+        'جایگزینی محصولات با فایل جدید انجام نشد. ممکن است محصولات به سفارش‌های قبلی متصل باشند یا ساختار فایل معتبر نباشد.',
+      );
+    }
   }
 }

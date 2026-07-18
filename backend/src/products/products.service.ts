@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { UpdateProductDto } from './dto/update-product.dto';
-import { SearchProductsDto, SortField, SortOrder } from './dto/search-products.dto';
+import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { UpdateProductDto } from "./dto/update-product.dto";
+import {
+  SearchProductsDto,
+  SortField,
+  SortOrder,
+} from "./dto/search-products.dto";
 
 @Injectable()
 export class ProductsService {
@@ -12,16 +16,16 @@ export class ProductsService {
     return this.prisma.product.findMany({
       where: batchId ? { batchId } : undefined,
       include: { batch: true },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
     });
   }
 
   async findLatest() {
-  const latestBatch = await this.prisma.uploadBatch.findFirst({
-    orderBy: { uploadedAt: 'desc' },
-    include: { products: { orderBy: { name: 'asc' } } },
-  });
-  return latestBatch || { products: [] };
+    const latestBatch = await this.prisma.uploadBatch.findFirst({
+      orderBy: { uploadedAt: "desc" },
+      include: { products: { orderBy: { name: "asc" } } },
+    });
+    return latestBatch || { products: [] };
   }
 
   // findAllBatches() {
@@ -31,16 +35,16 @@ export class ProductsService {
   //   });
   // }
   async updateProduct(id: number, dto: UpdateProductDto) {
-  return this.prisma.product.update({
-    where: { id },
-    data: {
-      categoryMain: dto.categoryMain,
-      categorySecond: dto.categorySecond,
-      imageUrl: dto.imageUrl,
-    },
-  });
-}
- // ── Advanced Search ──────────────────────────────────────────────────────
+    return this.prisma.product.update({
+      where: { id },
+      data: {
+        categoryMain: dto.categoryMain,
+        categorySecond: dto.categorySecond,
+        imageUrl: dto.imageUrl,
+      },
+    });
+  }
+  // ── Advanced Search ──────────────────────────────────────────────────────
 
   async search(dto: SearchProductsDto) {
     const {
@@ -69,14 +73,14 @@ export class ProductsService {
           {
             nameNormalized: {
               contains: name,
-              mode: 'insensitive' as Prisma.QueryMode,
+              mode: "insensitive" as Prisma.QueryMode,
             },
           },
           // fallback روی name اصلی (برای داده‌های قدیمی بدون nameNormalized)
           {
             name: {
               contains: name,
-              mode: 'insensitive' as Prisma.QueryMode,
+              mode: "insensitive" as Prisma.QueryMode,
             },
           },
         ],
@@ -85,14 +89,14 @@ export class ProductsService {
       ...(categoryMain && {
         categoryMain: {
           contains: categoryMain,
-          mode: 'insensitive' as Prisma.QueryMode,
+          mode: "insensitive" as Prisma.QueryMode,
         },
       }),
 
       ...(categorySecond && {
         categorySecond: {
           contains: categorySecond,
-          mode: 'insensitive' as Prisma.QueryMode,
+          mode: "insensitive" as Prisma.QueryMode,
         },
       }),
 
@@ -112,7 +116,7 @@ export class ProductsService {
         },
       }),
 
-      ...(batchId && { batchId }),
+      ...(batchId !== undefined && { batchId }),
     };
 
     // ── ORDER BY ───────────────────────────────────────────────────
@@ -124,13 +128,29 @@ export class ProductsService {
     // ── FETCH (limit + 1 برای hasNextPage) ────────────────────────
     const take = limit + 1;
 
-    const items = await this.prisma.product.findMany({
-      where,
-      orderBy,
-      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      take,
-      include: { batch: { select: { id: true, uploadedAt: true } } },
-    });
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        orderBy,
+        ...(cursor !== undefined && {
+          cursor: { id: cursor },
+          skip: 1,
+        }),
+        take,
+        include: {
+          batch: {
+            select: {
+              id: true,
+              uploadedAt: true,
+            },
+          },
+        },
+      }),
+
+      this.prisma.product.count({
+        where,
+      }),
+    ]);
 
     const hasNextPage = items.length > limit;
     const data = hasNextPage ? items.slice(0, limit) : items;
@@ -138,7 +158,7 @@ export class ProductsService {
 
     return {
       data,
-      pagination: { limit, nextCursor, hasNextPage },
+      pagination: { limit, nextCursor, hasNextPage, total },
     };
   }
 }
