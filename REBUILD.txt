@@ -1,0 +1,9 @@
+Run these commands from this exact folder:
+
+docker compose down --remove-orphans
+docker image rm ecommerce-frontend 2>nul
+docker builder prune -f
+docker compose build --no-cache frontend
+docker compose up -d
+
+docker compose logs -f frontend
