@@ -245,4 +245,15 @@ export class OrdersService {
       data: { totalAmount },
     });
   }
+  async getDashboardStats() {
+  const [productsCount, ordersCount] = await Promise.all([
+    this.prisma.product.count(),
+    this.prisma.order.count(),
+  ]);
+
+  return {
+    productsCount,
+    ordersCount,
+  };
+}
 }

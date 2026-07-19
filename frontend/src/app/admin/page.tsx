@@ -62,9 +62,9 @@ export default function AdminDashboard() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (tab === "users") loadUsers();
-  }, [tab]);
+  // useEffect(() => {
+  //   if (tab === "users") loadUsers();
+  // }, [tab]);
 
   async function loadUsers() {
     try {
@@ -101,6 +101,8 @@ export default function AdminDashboard() {
   // ── Products + Infinite Scroll state ─────────────────────────────────────
   const [products, setProducts] = useState<any[]>([]);
   const [productsTotalCount, setProductsTotalCount] = useState<number>(0); // for stats
+  const [ordersTotalCount, setOrdersTotalCount] = useState<number>(0);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [searchParams, setSearchParams] =
     useState<SearchParams>(DEFAULT_SEARCH);
   const [draftSearch, setDraftSearch] = useState<SearchParams>(DEFAULT_SEARCH); // uncommitted form state
@@ -177,15 +179,53 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+
     if (tab === "products") {
       resetAndSearch(searchParams);
     }
+
     if (tab === "orders") {
       loadOrders();
       loadSellerSummary();
     }
-  }, [tab]);
 
+    if (tab === "users") {
+      loadUsers();
+    }
+  }, [tab, user]);
+  useEffect(() => {
+    const u = getUser();
+
+    if (!u || u.role !== "ADMIN") {
+      router.replace("/login");
+      return;
+    }
+
+    setUser(u);
+
+    // اطلاعات موردنیاز صفحه در همان بارگذاری اولیه
+    loadDashboardStats();
+  }, [router]);
+  async function loadDashboardStats() {
+    setLoadingStats(true);
+
+    try {
+      const { data } = await api.get("/orders/dashboard-stats");
+
+      setProductsTotalCount(data.productsCount ?? 0);
+
+      setOrdersTotalCount(data.ordersCount ?? 0);
+    } catch (error: any) {
+      console.error("Dashboard stats error:", error);
+
+      toast.error(
+        error.response?.data?.message || "خطا در دریافت آمار داشبورد",
+      );
+    } finally {
+      setLoadingStats(false);
+    }
+  }
   // ── Search helpers ────────────────────────────────────────────────────────
 
   function buildQuery(params: SearchParams, cur?: number | null) {
@@ -211,22 +251,17 @@ export default function AdminDashboard() {
     setProducts([]);
     setCursor(null);
     setHasNextPage(false);
+
     try {
       const { data } = await api.get(`/products/search?${buildQuery(params)}`);
-      setProducts(data.data);
-      setHasNextPage(data.pagination.hasNextPage);
-      setCursor(data.pagination.nextCursor);
-      // also keep a rough total count using the latest batch for the stats bar
-      if (!productsTotalCount) {
-        const latest = await api.get("/products/latest");
-        const arr =
-          Array.isArray(latest.data) ?
-            latest.data
-          : latest.data?.products || [];
-        setProductsTotalCount(arr.length);
-      }
-    } catch {
-      toast.error("خطا در جستجوی محصولات");
+
+      setProducts(data.data ?? []);
+
+      setHasNextPage(data.pagination?.hasNextPage ?? false);
+
+      setCursor(data.pagination?.nextCursor ?? null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "خطا در جستجوی محصولات");
     } finally {
       setLoadingProducts(false);
     }
@@ -263,7 +298,20 @@ export default function AdminDashboard() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [loadMore]);
-
+  const stats = [
+    {
+      label: "کل محصولات",
+      value: loadingStats ? "..." : productsTotalCount.toLocaleString("fa-IR"),
+      icon: "📦",
+      color: "bg-green-500",
+    },
+    {
+      label: "سفارشات",
+      value: loadingStats ? "..." : ordersTotalCount.toLocaleString("fa-IR"),
+      icon: "📋",
+      color: "bg-orange-500",
+    },
+  ];
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSearchParams(draftSearch);
@@ -494,8 +542,7 @@ export default function AdminDashboard() {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-white/70 md:w-auto md:px-6 md:py-3 md:text-base"
-          >
+            className="w-full rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-white/70 md:w-auto md:px-6 md:py-3 md:text-base">
             خروج 🚪
           </button>
         </div>
@@ -504,35 +551,22 @@ export default function AdminDashboard() {
       <main className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6 xl:px-8">
         {/* Stats bar */}
         <div className="mb-4 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4">
-          {[
-            {
-              label: "کل محصولات",
-              value: productsTotalCount || products.length || "—",
-              icon: "📦",
-              color: "bg-green-500",
-            },
-            {
-              label: "سفارشات",
-              value: orders.length || "—",
-              icon: "📋",
-              color: "bg-orange-500",
-            },
-          ].map((s) => (
+          {stats.map((stat) => (
             <div
-              key={s.label}
-              className="card flex min-w-0 items-center gap-3 p-3 sm:gap-4 sm:p-4"
-            >
+              key={stat.label}
+              className="card flex min-w-0 items-center gap-3 p-3 sm:gap-4 sm:p-4">
               <div
-                className={`${s.color} shrink-0 rounded-xl p-2.5 text-xl text-white sm:rounded-2xl sm:p-3 sm:text-2xl`}
-              >
-                {s.icon}
+                className={`${stat.color} shrink-0 rounded-xl p-2.5 text-xl text-white sm:rounded-2xl sm:p-3 sm:text-2xl`}>
+                {stat.icon}
               </div>
+
               <div className="min-w-0">
                 <p className="truncate text-xl font-bold text-gray-800 sm:text-2xl">
-                  {s.value}
+                  {stat.value}
                 </p>
+
                 <p className="truncate text-xs text-gray-500 sm:text-sm">
-                  {s.label}
+                  {stat.label}
                 </p>
               </div>
             </div>
@@ -547,11 +581,10 @@ export default function AdminDashboard() {
               type="button"
               onClick={() => setTab(t.key as Tab)}
               className={`min-w-0 rounded-xl px-2 py-2.5 text-xs font-bold transition-all sm:px-4 sm:py-3 sm:text-sm lg:text-base ${
-                tab === t.key
-                  ? "bg-blue-700 text-white shadow"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
+                tab === t.key ?
+                  "bg-blue-700 text-white shadow"
+                : "text-gray-600 hover:bg-gray-100"
+              }`}>
               <span className="block truncate sm:inline">
                 <span className="ml-1">{t.icon}</span>
                 {t.label}
@@ -571,8 +604,7 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 className="flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50 px-4 py-8 text-center transition-colors hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 sm:rounded-3xl sm:border-4 sm:p-10"
-                onClick={() => fileRef.current?.click()}
-              >
+                onClick={() => fileRef.current?.click()}>
                 <span className="mb-3 text-5xl sm:mb-4 sm:text-6xl">📊</span>
                 <span className="mb-2 text-base font-bold text-gray-700 sm:text-xl">
                   فایل اکسل را اینجا انتخاب کنید
@@ -600,16 +632,13 @@ export default function AdminDashboard() {
                 type="button"
                 onClick={handleUpload}
                 disabled={!file || uploading}
-                className="btn-primary mt-4 w-full"
-              >
-                {uploading ? (
+                className="btn-primary mt-4 w-full">
+                {uploading ?
                   <span className="flex items-center justify-center gap-3">
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent sm:h-6 sm:w-6" />
                     در حال بارگذاری...
                   </span>
-                ) : (
-                  "📤 بارگذاری فایل"
-                )}
+                : "📤 بارگذاری فایل"}
               </button>
             </div>
           </section>
@@ -638,7 +667,9 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:shrink-0">
-                    <button type="submit" className="btn-primary whitespace-nowrap">
+                    <button
+                      type="submit"
+                      className="btn-primary whitespace-nowrap">
                       جستجو
                     </button>
 
@@ -646,11 +677,10 @@ export default function AdminDashboard() {
                       type="button"
                       onClick={() => setShowFilters((value) => !value)}
                       className={`relative whitespace-nowrap rounded-xl border-2 px-3 py-2 font-bold transition-all sm:px-4 ${
-                        showFilters
-                          ? "border-blue-600 bg-blue-50 text-blue-700"
-                          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
+                        showFilters ?
+                          "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                      }`}>
                       🎛️ فیلترها
                       {hasActiveFilters && (
                         <span className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-full bg-blue-600" />
@@ -661,8 +691,7 @@ export default function AdminDashboard() {
                       <button
                         type="button"
                         onClick={handleResetFilters}
-                        className="col-span-2 rounded-xl px-3 py-2 text-sm font-bold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 sm:col-span-1"
-                      >
+                        className="col-span-2 rounded-xl px-3 py-2 text-sm font-bold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 sm:col-span-1">
                         ✕ پاک کردن فیلترها
                       </button>
                     )}
@@ -727,7 +756,7 @@ export default function AdminDashboard() {
 
                     <div>
                       <label className="mb-1 block text-xs font-bold text-gray-500">
-                        بازه قیمت (تومان)
+                        بازه قیمت (ریال)
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <input
@@ -806,8 +835,7 @@ export default function AdminDashboard() {
                               ...draftSearch,
                               sortBy: e.target.value as SortField,
                             })
-                          }
-                        >
+                          }>
                           <option value="name">نام</option>
                           <option value="price">قیمت</option>
                           <option value="quantityMain">موجودی</option>
@@ -821,8 +849,7 @@ export default function AdminDashboard() {
                               ...draftSearch,
                               sortOrder: e.target.value as SortOrder,
                             })
-                          }
-                        >
+                          }>
                           <option value="asc">صعودی</option>
                           <option value="desc">نزولی</option>
                         </select>
@@ -831,8 +858,7 @@ export default function AdminDashboard() {
 
                     <button
                       type="submit"
-                      className="btn-primary sm:col-span-2 xl:col-span-3"
-                    >
+                      className="btn-primary sm:col-span-2 xl:col-span-3">
                       اعمال جستجو و فیلترها
                     </button>
                   </div>
@@ -848,32 +874,29 @@ export default function AdminDashboard() {
             )}
 
             <div className="card overflow-hidden p-0">
-              {loadingProducts ? (
+              {loadingProducts ?
                 <LoadingSpinner />
-              ) : products.length === 0 ? (
+              : products.length === 0 ?
                 <EmptyState text="محصولی یافت نشد" />
-              ) : (
-                <>
+              : <>
                   {/* Mobile and small tablet product cards */}
                   <div className="space-y-3 p-3 md:hidden">
                     {products.map((product: any) => (
                       <article
                         key={product.id}
-                        className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm"
-                      >
+                        className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
                         <div className="flex items-start gap-3">
                           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                            {product.imageUrl ? (
+                            {product.imageUrl ?
                               <img
                                 src={product.imageUrl}
                                 alt={product.name}
                                 className="h-full w-full object-cover"
                               />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-2xl text-gray-300">
+                            : <div className="flex h-full w-full items-center justify-center text-2xl text-gray-300">
                                 📦
                               </div>
-                            )}
+                            }
                           </div>
 
                           <div className="min-w-0 flex-1">
@@ -886,11 +909,10 @@ export default function AdminDashboard() {
                               </span>
                               <span
                                 className={`rounded-lg px-2 py-1 font-bold ${
-                                  product.quantityMain > 0
-                                    ? "bg-green-50 text-green-700"
-                                    : "bg-red-50 text-red-600"
-                                }`}
-                              >
+                                  product.quantityMain > 0 ?
+                                    "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-600"
+                                }`}>
                                 موجودی: {product.quantity}
                               </span>
                             </div>
@@ -919,7 +941,7 @@ export default function AdminDashboard() {
                           <div>
                             <dt className="text-gray-400">قیمت</dt>
                             <dd className="mt-1 font-bold text-blue-700">
-                              {product.price?.toLocaleString("fa-IR")} تومان
+                              {product.price?.toLocaleString("fa-IR")} ریال
                             </dd>
                           </div>
                         </dl>
@@ -934,8 +956,7 @@ export default function AdminDashboard() {
                               imageBase64: product.imageUrl || "",
                             });
                           }}
-                          className="mt-3 w-full rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100"
-                        >
+                          className="mt-3 w-full rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100">
                           ویرایش محصول
                         </button>
                       </article>
@@ -960,8 +981,7 @@ export default function AdminDashboard() {
                           ].map((heading) => (
                             <th
                               key={heading}
-                              className="whitespace-nowrap px-4 py-3 text-sm font-bold text-gray-600"
-                            >
+                              className="whitespace-nowrap px-4 py-3 text-sm font-bold text-gray-600">
                               {heading}
                             </th>
                           ))}
@@ -971,10 +991,11 @@ export default function AdminDashboard() {
                         {products.map((product: any) => (
                           <tr
                             key={product.id}
-                            className="border-b border-gray-100 transition-colors hover:bg-blue-50"
-                          >
+                            className="border-b border-gray-100 transition-colors hover:bg-blue-50">
                             <td className="max-w-[260px] px-4 py-3 font-semibold">
-                              <span className="line-clamp-2">{product.name}</span>
+                              <span className="line-clamp-2">
+                                {product.name}
+                              </span>
                             </td>
                             <td className="whitespace-nowrap px-4 py-3 text-gray-600">
                               {product.unitType} / {product.subUnitType}
@@ -993,11 +1014,10 @@ export default function AdminDashboard() {
                             <td className="px-4 py-3">
                               <span
                                 className={`font-bold ${
-                                  product.quantityMain > 0
-                                    ? "text-green-600"
-                                    : "text-red-500"
-                                }`}
-                              >
+                                  product.quantityMain > 0 ?
+                                    "text-green-600"
+                                  : "text-red-500"
+                                }`}>
                                 {product.quantity}
                               </span>
                             </td>
@@ -1005,15 +1025,13 @@ export default function AdminDashboard() {
                               {product.price?.toLocaleString("fa-IR")}
                             </td>
                             <td className="px-4 py-3">
-                              {product.imageUrl ? (
+                              {product.imageUrl ?
                                 <img
                                   src={product.imageUrl}
                                   alt={product.name}
                                   className="h-12 w-12 rounded-lg object-cover"
                                 />
-                              ) : (
-                                <span className="text-gray-400">—</span>
-                              )}
+                              : <span className="text-gray-400">—</span>}
                             </td>
                             <td className="px-4 py-3">
                               <button
@@ -1022,12 +1040,12 @@ export default function AdminDashboard() {
                                   setEditingProduct(product);
                                   setEditForm({
                                     categoryMain: product.categoryMain || "",
-                                    categorySecond: product.categorySecond || "",
+                                    categorySecond:
+                                      product.categorySecond || "",
                                     imageBase64: product.imageUrl || "",
                                   });
                                 }}
-                                className="whitespace-nowrap text-sm font-bold text-blue-600 hover:text-blue-800"
-                              >
+                                className="whitespace-nowrap text-sm font-bold text-blue-600 hover:text-blue-800">
                                 ویرایش
                               </button>
                             </td>
@@ -1037,7 +1055,7 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 </>
-              )}
+              }
 
               <div ref={sentinelRef} className="flex justify-center px-3 py-4">
                 {loadingMore && (
@@ -1066,8 +1084,7 @@ export default function AdminDashboard() {
                       type="button"
                       onClick={() => setEditingProduct(null)}
                       className="shrink-0 rounded-full bg-gray-100 px-3 py-1.5 text-gray-500 hover:bg-gray-200"
-                      aria-label="بستن"
-                    >
+                      aria-label="بستن">
                       ✕
                     </button>
                   </div>
@@ -1137,15 +1154,13 @@ export default function AdminDashboard() {
                       <button
                         type="button"
                         onClick={() => setEditingProduct(null)}
-                        className="btn-secondary w-full"
-                      >
+                        className="btn-secondary w-full">
                         انصراف
                       </button>
                       <button
                         type="button"
                         onClick={() => updateProduct(editingProduct.id)}
-                        className="btn-primary w-full"
-                      >
+                        className="btn-primary w-full">
                         ذخیره تغییرات
                       </button>
                     </div>
@@ -1164,18 +1179,16 @@ export default function AdminDashboard() {
                 📊 خلاصه مالی فروشندگان
               </h3>
 
-              {sellerSummary.length === 0 ? (
+              {sellerSummary.length === 0 ?
                 <p className="py-4 text-center text-sm text-gray-400">
                   هیچ داده مالی موجود نیست
                 </p>
-              ) : (
-                <>
+              : <>
                   <div className="space-y-3 md:hidden">
                     {sellerSummary.map((summary) => (
                       <article
                         key={summary.id}
-                        className="rounded-2xl border border-gray-100 bg-gray-50 p-3"
-                      >
+                        className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
                         <h4 className="mb-3 break-words font-bold text-gray-800">
                           {summary.name}
                         </h4>
@@ -1183,25 +1196,24 @@ export default function AdminDashboard() {
                           <div>
                             <dt className="text-gray-400">جمع کل</dt>
                             <dd className="mt-1 font-semibold text-gray-700">
-                              {summary.totalAmount.toLocaleString()} تومان
+                              {summary.totalAmount.toLocaleString()} ریال
                             </dd>
                           </div>
                           <div>
                             <dt className="text-gray-400">پرداختی</dt>
                             <dd className="mt-1 font-semibold text-gray-700">
-                              {summary.totalPaid.toLocaleString()} تومان
+                              {summary.totalPaid.toLocaleString()} ریال
                             </dd>
                           </div>
                           <div className="col-span-2 rounded-xl bg-white p-2">
                             <dt className="text-gray-400">مانده</dt>
                             <dd
                               className={`mt-1 font-bold ${
-                                summary.outstanding > 0
-                                  ? "text-red-600"
-                                  : "text-green-600"
-                              }`}
-                            >
-                              {summary.outstanding.toLocaleString()} تومان
+                                summary.outstanding > 0 ?
+                                  "text-red-600"
+                                : "text-green-600"
+                              }`}>
+                              {summary.outstanding.toLocaleString()} ریال
                             </dd>
                           </div>
                         </dl>
@@ -1213,15 +1225,17 @@ export default function AdminDashboard() {
                     <table className="min-w-[720px] w-full border-collapse text-right">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="p-3 font-bold text-gray-700">فروشنده</th>
                           <th className="p-3 font-bold text-gray-700">
-                            جمع کل (تومان)
+                            فروشنده
                           </th>
                           <th className="p-3 font-bold text-gray-700">
-                            پرداختی (تومان)
+                            جمع کل (ریال)
                           </th>
                           <th className="p-3 font-bold text-gray-700">
-                            مانده (تومان)
+                            پرداختی (ریال)
+                          </th>
+                          <th className="p-3 font-bold text-gray-700">
+                            مانده (ریال)
                           </th>
                         </tr>
                       </thead>
@@ -1229,9 +1243,10 @@ export default function AdminDashboard() {
                         {sellerSummary.map((summary) => (
                           <tr
                             key={summary.id}
-                            className="border-b border-gray-200"
-                          >
-                            <td className="p-3 font-semibold">{summary.name}</td>
+                            className="border-b border-gray-200">
+                            <td className="p-3 font-semibold">
+                              {summary.name}
+                            </td>
                             <td className="p-3">
                               {summary.totalAmount.toLocaleString()}
                             </td>
@@ -1240,11 +1255,10 @@ export default function AdminDashboard() {
                             </td>
                             <td
                               className={`p-3 font-bold ${
-                                summary.outstanding > 0
-                                  ? "text-red-600"
-                                  : "text-green-600"
-                              }`}
-                            >
+                                summary.outstanding > 0 ?
+                                  "text-red-600"
+                                : "text-green-600"
+                              }`}>
                               {summary.outstanding.toLocaleString()}
                             </td>
                           </tr>
@@ -1253,7 +1267,7 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 </>
-              )}
+              }
             </div>
 
             <div className="card p-3 sm:p-5">
@@ -1261,28 +1275,25 @@ export default function AdminDashboard() {
                 📋 مدیریت سفارشات
               </h2>
 
-              {loading ? (
+              {loading ?
                 <LoadingSpinner />
-              ) : orders.length === 0 ? (
+              : orders.length === 0 ?
                 <EmptyState text="هنوز سفارشی ثبت نشده است" />
-              ) : (
-                <div className="space-y-3 sm:space-y-4">
+              : <div className="space-y-3 sm:space-y-4">
                   {orders.map((order: any) => {
                     const isExpanded = expandedOrderId === order.id;
 
                     return (
                       <article
                         key={order.id}
-                        className="rounded-2xl border-2 border-gray-100 p-3 transition-colors hover:border-blue-200 sm:p-5"
-                      >
+                        className="rounded-2xl border-2 border-gray-100 p-3 transition-colors hover:border-blue-200 sm:p-5">
                         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
                           <button
                             type="button"
                             onClick={() =>
                               setExpandedOrderId(isExpanded ? null : order.id)
                             }
-                            className="min-w-0 text-right"
-                          >
+                            className="min-w-0 text-right">
                             <div className="mb-2 flex flex-wrap items-center gap-2 sm:gap-3">
                               <span className="text-base font-bold text-gray-800 sm:text-xl">
                                 سفارش #{order.id}
@@ -1297,7 +1308,10 @@ export default function AdminDashboard() {
 
                             <div className="space-y-1 text-xs sm:text-sm">
                               <p className="break-words text-gray-600">
-                                🏪 {order.seller?.name || order.shop?.name || "نامشخص"}
+                                🏪{" "}
+                                {order.seller?.name ||
+                                  order.shop?.name ||
+                                  "نامشخص"}
                               </p>
                               {order.user && (
                                 <p className="break-words text-gray-500">
@@ -1321,20 +1335,20 @@ export default function AdminDashboard() {
                               onChange={(e) =>
                                 updateOrderStatus(order.id, e.target.value)
                               }
-                              className="w-full rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-sm font-bold focus:border-blue-500 focus:outline-none"
-                            >
-                              {Object.entries(STATUS_LABELS).map(([key, value]) => (
-                                <option key={key} value={key}>
-                                  {value}
-                                </option>
-                              ))}
+                              className="w-full rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-sm font-bold focus:border-blue-500 focus:outline-none">
+                              {Object.entries(STATUS_LABELS).map(
+                                ([key, value]) => (
+                                  <option key={key} value={key}>
+                                    {value}
+                                  </option>
+                                ),
+                              )}
                             </select>
 
                             <button
                               type="button"
                               onClick={() => generatePDF(order)}
-                              className="w-full rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700"
-                            >
+                              className="w-full rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700">
                               📄 چاپ فاکتور
                             </button>
                           </div>
@@ -1349,20 +1363,22 @@ export default function AdminDashboard() {
 
                               <div className="space-y-3">
                                 {order.items?.map((item: any) => {
-                                  const isEditing = editingItem?.itemId === item.id;
+                                  const isEditing =
+                                    editingItem?.itemId === item.id;
 
                                   return (
                                     <div
                                       key={item.id}
-                                      className="rounded-xl bg-gray-50 p-3"
-                                    >
+                                      className="rounded-xl bg-gray-50 p-3">
                                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                         <div className="min-w-0 flex-1">
                                           <p className="break-words font-semibold text-gray-800">
-                                            {item.productName || item.product?.name || "محصول نامشخص"}
+                                            {item.productName ||
+                                              item.product?.name ||
+                                              "محصول نامشخص"}
                                           </p>
 
-                                          {isEditing ? (
+                                          {isEditing ?
                                             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[auto_9rem_auto_11rem_auto_auto] xl:items-center">
                                               <label className="text-sm font-semibold text-gray-600">
                                                 تعداد
@@ -1373,12 +1389,14 @@ export default function AdminDashboard() {
                                                 value={editingItem.quantity}
                                                 onChange={(e) =>
                                                   setEditingItem((previous) =>
-                                                    previous
-                                                      ? {
-                                                          ...previous,
-                                                          quantity: Number(e.target.value),
-                                                        }
-                                                      : null,
+                                                    previous ?
+                                                      {
+                                                        ...previous,
+                                                        quantity: Number(
+                                                          e.target.value,
+                                                        ),
+                                                      }
+                                                    : null,
                                                   )
                                                 }
                                                 min="1"
@@ -1393,12 +1411,14 @@ export default function AdminDashboard() {
                                                 value={editingItem.unitPrice}
                                                 onChange={(e) =>
                                                   setEditingItem((previous) =>
-                                                    previous
-                                                      ? {
-                                                          ...previous,
-                                                          unitPrice: Number(e.target.value),
-                                                        }
-                                                      : null,
+                                                    previous ?
+                                                      {
+                                                        ...previous,
+                                                        unitPrice: Number(
+                                                          e.target.value,
+                                                        ),
+                                                      }
+                                                    : null,
                                                   )
                                                 }
                                                 min="0"
@@ -1414,31 +1434,36 @@ export default function AdminDashboard() {
                                                     editingItem.unitPrice,
                                                   )
                                                 }
-                                                className="btn-success w-full px-4 py-2 text-sm"
-                                              >
+                                                className="btn-success w-full px-4 py-2 text-sm">
                                                 ذخیره
                                               </button>
                                               <button
                                                 type="button"
-                                                onClick={() => setEditingItem(null)}
-                                                className="btn-secondary w-full px-4 py-2 text-sm"
-                                              >
+                                                onClick={() =>
+                                                  setEditingItem(null)
+                                                }
+                                                className="btn-secondary w-full px-4 py-2 text-sm">
                                                 انصراف
                                               </button>
                                             </div>
-                                          ) : (
-                                            <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3 sm:text-sm">
+                                          : <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3 sm:text-sm">
                                               <span className="rounded-lg bg-white px-2 py-2">
                                                 تعداد: {item.quantity}
                                               </span>
                                               <span className="rounded-lg bg-white px-2 py-2">
-                                                قیمت واحد: {item.unitPrice?.toLocaleString()} تومان
+                                                قیمت واحد:{" "}
+                                                {item.unitPrice?.toLocaleString()}{" "}
+                                                ریال
                                               </span>
                                               <span className="rounded-lg bg-blue-50 px-2 py-2 font-bold text-blue-700">
-                                                جمع: {(item.quantity * item.unitPrice).toLocaleString()} تومان
+                                                جمع:{" "}
+                                                {(
+                                                  item.quantity * item.unitPrice
+                                                ).toLocaleString()}{" "}
+                                                ریال
                                               </span>
                                             </div>
-                                          )}
+                                          }
                                         </div>
 
                                         {!isEditing && (
@@ -1453,17 +1478,18 @@ export default function AdminDashboard() {
                                                   unitPrice: item.unitPrice,
                                                 })
                                               }
-                                              className="rounded-lg px-3 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50"
-                                            >
+                                              className="rounded-lg px-3 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50">
                                               ویرایش
                                             </button>
                                             <button
                                               type="button"
                                               onClick={() =>
-                                                removeOrderItem(order.id, item.id)
+                                                removeOrderItem(
+                                                  order.id,
+                                                  item.id,
+                                                )
                                               }
-                                              className="rounded-lg px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50"
-                                            >
+                                              className="rounded-lg px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50">
                                               حذف
                                             </button>
                                           </div>
@@ -1481,15 +1507,14 @@ export default function AdminDashboard() {
                                   💰 جمع کل سفارش:
                                 </span>
                                 <span className="text-lg font-bold text-green-700 sm:text-xl">
-                                  {order.totalAmount?.toLocaleString()} تومان
+                                  {order.totalAmount?.toLocaleString()} ریال
                                 </span>
                               </div>
 
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <label
                                   htmlFor={`paid-amount-${order.id}`}
-                                  className="font-bold text-gray-700"
-                                >
+                                  className="font-bold text-gray-700">
                                   💵 مبلغ پرداختی:
                                 </label>
                                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:w-64">
@@ -1498,14 +1523,17 @@ export default function AdminDashboard() {
                                     type="number"
                                     defaultValue={order.paidAmount}
                                     onBlur={(e) =>
-                                      updatePayment(order.id, Number(e.target.value))
+                                      updatePayment(
+                                        order.id,
+                                        Number(e.target.value),
+                                      )
                                     }
                                     className="input-field min-w-0 w-full py-2 text-left"
                                     dir="ltr"
                                     min="0"
                                     step="1000"
                                   />
-                                  <span className="text-sm">تومان</span>
+                                  <span className="text-sm">ریال</span>
                                 </div>
                               </div>
 
@@ -1515,18 +1543,17 @@ export default function AdminDashboard() {
                                 </span>
                                 <span
                                   className={`w-fit rounded-full px-3 py-1 text-sm font-bold ${
-                                    order.paymentStatus === "PAID"
-                                      ? "bg-green-100 text-green-800"
-                                      : order.paymentStatus === "PARTIAL"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-red-100 text-red-800"
-                                  }`}
-                                >
-                                  {order.paymentStatus === "PAID"
-                                    ? "پرداخت کامل"
-                                    : order.paymentStatus === "PARTIAL"
-                                      ? "پرداخت جزئی"
-                                      : "پرداخت نشده"}
+                                    order.paymentStatus === "PAID" ?
+                                      "bg-green-100 text-green-800"
+                                    : order.paymentStatus === "PARTIAL" ?
+                                      "bg-yellow-100 text-yellow-800"
+                                    : "bg-red-100 text-red-800"
+                                  }`}>
+                                  {order.paymentStatus === "PAID" ?
+                                    "پرداخت کامل"
+                                  : order.paymentStatus === "PARTIAL" ?
+                                    "پرداخت جزئی"
+                                  : "پرداخت نشده"}
                                 </span>
                               </div>
                             </div>
@@ -1536,7 +1563,7 @@ export default function AdminDashboard() {
                     );
                   })}
                 </div>
-              )}
+              }
             </div>
           </section>
         )}
@@ -1584,8 +1611,7 @@ export default function AdminDashboard() {
                     value={newUser.role}
                     onChange={(e) =>
                       setNewUser({ ...newUser, role: e.target.value })
-                    }
-                  >
+                    }>
                     <option value="VISITOR">ویزیتور (خریدار)</option>
                     <option value="SHOP_OWNER">فروشنده</option>
                   </select>
@@ -1594,8 +1620,7 @@ export default function AdminDashboard() {
                 <button
                   type="submit"
                   disabled={creatingUser}
-                  className="btn-success w-full sm:w-auto"
-                >
+                  className="btn-success w-full sm:w-auto">
                   {creatingUser ? "در حال ایجاد..." : "➕ ایجاد کاربر"}
                 </button>
               </form>
@@ -1606,33 +1631,34 @@ export default function AdminDashboard() {
                 📋 لیست کاربران
               </h3>
 
-              {users.length === 0 ? (
+              {users.length === 0 ?
                 <EmptyState text="هیچ کاربری یافت نشد" />
-              ) : (
-                <>
+              : <>
                   <div className="space-y-3 p-3 md:hidden">
                     {users.map((currentUser) => (
                       <article
                         key={currentUser.id}
-                        className="rounded-2xl border border-gray-100 bg-gray-50 p-3"
-                      >
+                        className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h4 className="break-words font-bold text-gray-800">
                               {currentUser.name}
                             </h4>
-                            <p className="mt-1 break-all text-sm text-gray-600" dir="ltr">
+                            <p
+                              className="mt-1 break-all text-sm text-gray-600"
+                              dir="ltr">
                               {currentUser.phone}
                             </p>
                           </div>
                           <span
                             className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${
-                              currentUser.role === "SHOP_OWNER"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {currentUser.role === "SHOP_OWNER" ? "فروشنده" : "ویزیتور"}
+                              currentUser.role === "SHOP_OWNER" ?
+                                "bg-amber-100 text-amber-800"
+                              : "bg-blue-100 text-blue-800"
+                            }`}>
+                            {currentUser.role === "SHOP_OWNER" ?
+                              "فروشنده"
+                            : "ویزیتور"}
                           </span>
                         </div>
 
@@ -1643,8 +1669,7 @@ export default function AdminDashboard() {
                           <button
                             type="button"
                             onClick={() => setPasswordModalUser(currentUser)}
-                            className="w-full rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 sm:w-auto"
-                          >
+                            className="w-full rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 sm:w-auto">
                             تغییر رمز
                           </button>
                         </div>
@@ -1675,14 +1700,13 @@ export default function AdminDashboard() {
                             <td className="p-3">
                               <span
                                 className={`rounded-full px-2 py-1 text-xs font-bold ${
-                                  currentUser.role === "SHOP_OWNER"
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-blue-100 text-blue-800"
-                                }`}
-                              >
-                                {currentUser.role === "SHOP_OWNER"
-                                  ? "فروشنده"
-                                  : "ویزیتور"}
+                                  currentUser.role === "SHOP_OWNER" ?
+                                    "bg-amber-100 text-amber-800"
+                                  : "bg-blue-100 text-blue-800"
+                                }`}>
+                                {currentUser.role === "SHOP_OWNER" ?
+                                  "فروشنده"
+                                : "ویزیتور"}
                               </span>
                             </td>
                             <td className="p-3 text-sm text-gray-500">
@@ -1691,9 +1715,10 @@ export default function AdminDashboard() {
                             <td className="p-3">
                               <button
                                 type="button"
-                                onClick={() => setPasswordModalUser(currentUser)}
-                                className="whitespace-nowrap text-sm font-bold text-blue-600 hover:text-blue-800"
-                              >
+                                onClick={() =>
+                                  setPasswordModalUser(currentUser)
+                                }
+                                className="whitespace-nowrap text-sm font-bold text-blue-600 hover:text-blue-800">
                                 تغییر رمز
                               </button>
                             </td>
@@ -1703,7 +1728,7 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 </>
-              )}
+              }
             </div>
 
             {passwordModalUser && (
@@ -1725,8 +1750,7 @@ export default function AdminDashboard() {
                         setNewPassword("");
                       }}
                       className="shrink-0 rounded-full bg-gray-100 px-3 py-1.5 text-gray-500 hover:bg-gray-200"
-                      aria-label="بستن"
-                    >
+                      aria-label="بستن">
                       ✕
                     </button>
                   </div>
@@ -1746,16 +1770,14 @@ export default function AdminDashboard() {
                         setPasswordModalUser(null);
                         setNewPassword("");
                       }}
-                      className="btn-secondary w-full"
-                    >
+                      className="btn-secondary w-full">
                       انصراف
                     </button>
                     <button
                       type="button"
                       onClick={() => handleChangePassword(passwordModalUser.id)}
                       disabled={changingPassword}
-                      className="btn-primary w-full"
-                    >
+                      className="btn-primary w-full">
                       {changingPassword ? "در حال تغییر..." : "تغییر رمز"}
                     </button>
                   </div>

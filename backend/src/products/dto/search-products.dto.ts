@@ -28,7 +28,9 @@ export class SearchProductsDto {
   @IsOptional()
   @IsString()
   @Transform(({ value }) =>
-    typeof value === 'string' ? normalizePersian(value) : value,
+    typeof value === 'string'
+      ? normalizePersian(value).replace(/\s+/g, ' ').trim()
+      : value,
   )
   name?: string;
 

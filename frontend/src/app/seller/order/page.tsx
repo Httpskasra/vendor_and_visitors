@@ -51,8 +51,7 @@ export default function SellerOrderPage() {
 
   const [searchParams, setSearchParams] =
     useState<SearchParams>(DEFAULT_SEARCH);
-  const [draftSearch, setDraftSearch] =
-    useState<SearchParams>(DEFAULT_SEARCH);
+  const [draftSearch, setDraftSearch] = useState<SearchParams>(DEFAULT_SEARCH);
   const [showFilters, setShowFilters] = useState(false);
   const [searching, setSearching] = useState(false);
 
@@ -111,18 +110,9 @@ export default function SellerOrderPage() {
     return () => {
       observer.disconnect();
     };
-  }, [
-    hasNextPage,
-    nextCursor,
-    loadingMore,
-    searching,
-    searchParams,
-  ]);
+  }, [hasNextPage, nextCursor, loadingMore, searching, searchParams]);
 
-  async function searchProducts(
-    params: SearchParams,
-    cursor?: number,
-  ) {
+  async function searchProducts(params: SearchParams, cursor?: number) {
     const isLoadMore = cursor !== undefined;
 
     if (isLoadMore) {
@@ -174,13 +164,10 @@ export default function SellerOrderPage() {
         query.set("cursor", String(cursor));
       }
 
-      const response = await api.get(
-        `/products/search?${query.toString()}`,
-      );
+      const response = await api.get(`/products/search?${query.toString()}`);
 
-      const result = Array.isArray(response.data?.data)
-        ? response.data.data
-        : [];
+      const result =
+        Array.isArray(response.data?.data) ? response.data.data : [];
 
       const pagination = response.data?.pagination;
       const total = Number(pagination?.total ?? 0);
@@ -188,10 +175,7 @@ export default function SellerOrderPage() {
       if (isLoadMore) {
         setProducts((currentProducts) => {
           const productMap = new Map(
-            currentProducts.map((product) => [
-              product.id,
-              product,
-            ]),
+            currentProducts.map((product) => [product.id, product]),
           );
 
           result.forEach((product: any) => {
@@ -215,9 +199,7 @@ export default function SellerOrderPage() {
       }
     } catch (err) {
       toast.error(
-        isLoadMore
-          ? "خطا در دریافت محصولات بیشتر"
-          : "خطا در جستجوی محصولات",
+        isLoadMore ? "خطا در دریافت محصولات بیشتر" : "خطا در جستجوی محصولات",
       );
 
       console.error(err);
@@ -234,9 +216,7 @@ export default function SellerOrderPage() {
   function getProductStock(product: any) {
     const stock = Number(product.quantityMain ?? 0);
 
-    return Number.isFinite(stock) && stock > 0
-      ? stock
-      : 0;
+    return Number.isFinite(stock) && stock > 0 ? stock : 0;
   }
 
   function updateCart(
@@ -244,10 +224,7 @@ export default function SellerOrderPage() {
     requestedQuantity: number,
     maxQuantity: number,
   ) {
-    const nextQuantity = Math.max(
-      0,
-      Math.min(requestedQuantity, maxQuantity),
-    );
+    const nextQuantity = Math.max(0, Math.min(requestedQuantity, maxQuantity));
 
     setCart((currentCart) => {
       const nextCart = { ...currentCart };
@@ -263,11 +240,7 @@ export default function SellerOrderPage() {
   }
 
   const cartTotalItems = useMemo(
-    () =>
-      Object.values(cart).reduce(
-        (sum, quantity) => sum + quantity,
-        0,
-      ),
+    () => Object.values(cart).reduce((sum, quantity) => sum + quantity, 0),
     [cart],
   );
 
@@ -298,12 +271,10 @@ export default function SellerOrderPage() {
     setSubmitting(true);
 
     try {
-      const items = Object.entries(cart).map(
-        ([productId, quantity]) => ({
-          productId: Number(productId),
-          quantity,
-        }),
-      );
+      const items = Object.entries(cart).map(([productId, quantity]) => ({
+        productId: Number(productId),
+        quantity,
+      }));
 
       await api.post("/orders", {
         sellerId: user.id,
@@ -316,9 +287,7 @@ export default function SellerOrderPage() {
       setNotes("");
       router.push("/seller");
     } catch (err: any) {
-      toast.error(
-        err.response?.data?.message || "خطا در ثبت سفارش",
-      );
+      toast.error(err.response?.data?.message || "خطا در ثبت سفارش");
     } finally {
       setSubmitting(false);
     }
@@ -335,9 +304,7 @@ export default function SellerOrderPage() {
   }
 
   function handleLogout() {
-    const confirmed = window.confirm(
-      "آیا از خروج از سیستم مطمئن هستید؟",
-    );
+    const confirmed = window.confirm("آیا از خروج از سیستم مطمئن هستید؟");
 
     if (!confirmed) return;
 
@@ -349,13 +316,13 @@ export default function SellerOrderPage() {
 
   const hasActiveFilters = Boolean(
     draftSearch.name ||
-      draftSearch.categoryMain ||
-      draftSearch.categorySecond ||
-      draftSearch.unitType ||
-      draftSearch.priceMin ||
-      draftSearch.priceMax ||
-      draftSearch.quantityMin ||
-      draftSearch.quantityMax,
+    draftSearch.categoryMain ||
+    draftSearch.categorySecond ||
+    draftSearch.unitType ||
+    draftSearch.priceMin ||
+    draftSearch.priceMax ||
+    draftSearch.quantityMin ||
+    draftSearch.quantityMax,
   );
 
   return (
@@ -414,8 +381,8 @@ export default function SellerOrderPage() {
                 محصولات موردنیاز را انتخاب کنید
               </h2>
               <p className="mt-1 text-sm leading-6 text-gray-500">
-                تعداد هر محصول را مشخص کنید و سپس سفارش را از نوار
-                پایین صفحه ثبت کنید.
+                تعداد هر محصول را مشخص کنید و سپس سفارش را از نوار پایین صفحه
+                ثبت کنید.
               </p>
             </div>
 
@@ -473,13 +440,11 @@ export default function SellerOrderPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowFilters((current) => !current)
-                }
+                onClick={() => setShowFilters((current) => !current)}
                 className={`relative min-h-11 whitespace-nowrap rounded-xl border-2 px-4 py-2 font-bold transition-all ${
-                  showFilters
-                    ? "border-amber-600 bg-amber-50 text-amber-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                  showFilters ?
+                    "border-amber-600 bg-amber-50 text-amber-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                 }`}>
                 🎛️ فیلترها
                 {hasActiveFilters && (
@@ -538,7 +503,7 @@ export default function SellerOrderPage() {
                 />
 
                 <RangeFilter
-                  label="بازه قیمت (تومان)"
+                  label="بازه قیمت (ریال)"
                   minValue={draftSearch.priceMin || ""}
                   maxValue={draftSearch.priceMax || ""}
                   onMinChange={(value) =>
@@ -626,12 +591,11 @@ export default function SellerOrderPage() {
         )}
 
         {/* Products */}
-        {loading || searching ? (
+        {loading || searching ?
           <LoadingState />
-        ) : products.length === 0 ? (
+        : products.length === 0 ?
           <EmptyState />
-        ) : (
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        : <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => {
               const quantity = cart[product.id] || 0;
               const stock = getProductStock(product);
@@ -643,9 +607,9 @@ export default function SellerOrderPage() {
                 <article
                   key={product.id}
                   className={`group relative flex min-w-0 flex-col overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-200 ${
-                    isSelected
-                      ? "border-amber-500 ring-2 ring-amber-200"
-                      : "border-gray-100 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-lg"
+                    isSelected ?
+                      "border-amber-500 ring-2 ring-amber-200"
+                    : "border-gray-100 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-lg"
                   } ${!inStock ? "opacity-70" : ""}`}>
                   {isSelected && (
                     <div className="absolute right-3 top-3 z-10 rounded-full bg-amber-600 px-3 py-1 text-xs font-bold text-white shadow">
@@ -655,32 +619,29 @@ export default function SellerOrderPage() {
 
                   {/* Product image */}
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
-                    {product.imageUrl ? (
+                    {product.imageUrl ?
                       <img
                         src={product.imageUrl}
                         alt={product.name}
                         loading="lazy"
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
-                    ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center text-gray-300">
+                    : <div className="flex h-full w-full flex-col items-center justify-center text-gray-300">
                         <span className="text-5xl">📦</span>
-                        <span className="mt-2 text-xs">
-                          بدون تصویر
-                        </span>
+                        <span className="mt-2 text-xs">بدون تصویر</span>
                       </div>
-                    )}
+                    }
 
                     <div className="absolute bottom-3 left-3">
                       <span
                         className={`rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ${
-                          inStock
-                            ? "bg-green-100/95 text-green-800"
-                            : "bg-red-100/95 text-red-700"
+                          inStock ?
+                            "bg-green-100/95 text-green-800"
+                          : "bg-red-100/95 text-red-700"
                         }`}>
-                        {inStock
-                          ? `موجودی ${stock.toLocaleString("fa-IR")}`
-                          : "ناموجود"}
+                        {inStock ?
+                          `موجودی ${stock.toLocaleString("fa-IR")}`
+                        : "ناموجود"}
                       </span>
                     </div>
                   </div>
@@ -716,24 +677,18 @@ export default function SellerOrderPage() {
 
                       <div className="mt-4 flex items-end justify-between gap-3 border-t border-gray-100 pt-4">
                         <div>
-                          <p className="text-xs text-gray-400">
-                            قیمت واحد
-                          </p>
+                          <p className="text-xs text-gray-400">قیمت واحد</p>
                           <p className="mt-1 text-lg font-black text-amber-700">
-                            {Number(product.price || 0).toLocaleString(
-                              "fa-IR",
-                            )}
+                            {Number(product.price || 0).toLocaleString("fa-IR")}
                             <span className="mr-1 text-xs font-medium text-gray-500">
-                              تومان
+                              ریال
                             </span>
                           </p>
                         </div>
 
                         {quantity > 0 && (
                           <div className="text-left">
-                            <p className="text-xs text-gray-400">
-                              جمع محصول
-                            </p>
+                            <p className="text-xs text-gray-400">جمع محصول</p>
                             <p className="mt-1 text-sm font-bold text-gray-700">
                               {(
                                 Number(product.price || 0) * quantity
@@ -746,33 +701,26 @@ export default function SellerOrderPage() {
 
                     {/* Quantity selector */}
                     <div className="mt-4">
-                      {!inStock ? (
+                      {!inStock ?
                         <button
                           type="button"
                           disabled
                           className="h-12 w-full cursor-not-allowed rounded-2xl bg-gray-100 font-bold text-gray-400">
                           این محصول موجود نیست
                         </button>
-                      ) : quantity === 0 ? (
+                      : quantity === 0 ?
                         <button
                           type="button"
-                          onClick={() =>
-                            updateCart(product.id, 1, stock)
-                          }
+                          onClick={() => updateCart(product.id, 1, stock)}
                           className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-600 font-bold text-white transition-colors hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-200">
                           <span className="text-xl">＋</span>
                           افزودن به سفارش
                         </button>
-                      ) : (
-                        <div className="flex h-12 items-center overflow-hidden rounded-2xl border-2 border-amber-200 bg-amber-50">
+                      : <div className="flex h-12 items-center overflow-hidden rounded-2xl border-2 border-amber-200 bg-amber-50">
                           <button
                             type="button"
                             onClick={() =>
-                              updateCart(
-                                product.id,
-                                quantity - 1,
-                                stock,
-                              )
+                              updateCart(product.id, quantity - 1, stock)
                             }
                             className="flex h-full w-14 shrink-0 items-center justify-center text-2xl font-bold text-red-600 transition-colors hover:bg-red-100"
                             aria-label={`کاهش تعداد ${product.name}`}>
@@ -791,11 +739,7 @@ export default function SellerOrderPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              updateCart(
-                                product.id,
-                                quantity + 1,
-                                stock,
-                              )
+                              updateCart(product.id, quantity + 1, stock)
                             }
                             disabled={hasReachedLimit}
                             className="flex h-full w-14 shrink-0 items-center justify-center text-2xl font-bold text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-30"
@@ -803,7 +747,7 @@ export default function SellerOrderPage() {
                             ＋
                           </button>
                         </div>
-                      )}
+                      }
 
                       {hasReachedLimit && inStock && (
                         <p className="mt-2 text-center text-xs font-medium text-amber-700">
@@ -816,7 +760,7 @@ export default function SellerOrderPage() {
               );
             })}
           </section>
-        )}
+        }
 
         {products.length > 0 && (
           <div
@@ -881,8 +825,7 @@ export default function SellerOrderPage() {
 
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-800">
-                  {selectedProductsCount.toLocaleString("fa-IR")} قلم،
-                  {" "}
+                  {selectedProductsCount.toLocaleString("fa-IR")} قلم،{" "}
                   {cartTotalItems.toLocaleString("fa-IR")} عدد
                 </p>
 
@@ -890,7 +833,7 @@ export default function SellerOrderPage() {
                   <p className="mt-0.5 text-xs text-gray-500">
                     مبلغ تقریبی:{" "}
                     <span className="font-bold text-amber-700">
-                      {estimatedTotal.toLocaleString("fa-IR")} تومان
+                      {estimatedTotal.toLocaleString("fa-IR")} ریال
                     </span>
                   </p>
                 )}
@@ -902,14 +845,12 @@ export default function SellerOrderPage() {
               onClick={submitOrder}
               disabled={submitting}
               className="btn-primary min-h-12 w-full px-6 text-base sm:w-auto sm:min-w-64 disabled:cursor-not-allowed disabled:opacity-60">
-              {submitting ? (
+              {submitting ?
                 <span className="flex items-center justify-center gap-2">
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   در حال ثبت سفارش...
                 </span>
-              ) : (
-                "ثبت نهایی سفارش"
-              )}
+              : "ثبت نهایی سفارش"}
             </button>
           </div>
         </div>
@@ -989,9 +930,7 @@ function LoadingState() {
   return (
     <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl bg-white shadow-sm">
       <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-700 border-t-transparent" />
-      <p className="mt-4 text-sm text-gray-400">
-        در حال بارگذاری محصولات...
-      </p>
+      <p className="mt-4 text-sm text-gray-400">در حال بارگذاری محصولات...</p>
     </div>
   );
 }

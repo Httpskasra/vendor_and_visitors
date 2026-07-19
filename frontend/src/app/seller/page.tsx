@@ -8,11 +8,13 @@ import toast from "react-hot-toast";
 
 import api from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
-import {
-  STATUS_LABELS,
-  STATUS_BADGE,
-  formatDateTime,
-} from "@/lib/persian";
+import { STATUS_LABELS, STATUS_BADGE, formatDateTime } from "@/lib/persian";
+
+function formatPrice(value: unknown) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return "۰ تومان";
+  return `${amount.toLocaleString("fa-IR")} تومان`;
+}
 
 export default function SellerDashboard() {
   const router = useRouter();
@@ -46,9 +48,7 @@ export default function SellerDashboard() {
       const { data } = await api.get("/orders/my-shop-orders");
       setOrders(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      toast.error(
-        err.response?.data?.message || "خطا در بارگذاری سفارشات",
-      );
+      toast.error(err.response?.data?.message || "خطا در بارگذاری سفارشات");
       console.error(err);
     } finally {
       setLoading(false);
@@ -56,9 +56,7 @@ export default function SellerDashboard() {
   }
 
   function handleLogout() {
-    const confirmed = window.confirm(
-      "آیا از خروج از سیستم مطمئن هستید؟",
-    );
+    const confirmed = window.confirm("آیا از خروج از سیستم مطمئن هستید؟");
 
     if (!confirmed) return;
 
@@ -107,7 +105,8 @@ export default function SellerDashboard() {
   return (
     <div
       className="min-h-screen overflow-x-hidden bg-gradient-to-br from-amber-50 to-orange-100"
-      dir="rtl">
+      dir="rtl"
+    >
       {/* Header */}
       <header className="sticky top-0 z-20 bg-amber-800 text-white shadow-xl">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 px-3 py-4 sm:px-4 md:flex-row md:items-center md:justify-between">
@@ -117,9 +116,7 @@ export default function SellerDashboard() {
             </div>
 
             <div className="min-w-0">
-              <h1 className="text-xl font-bold sm:text-2xl">
-                پنل فروشنده
-              </h1>
+              <h1 className="text-xl font-bold sm:text-2xl">پنل فروشنده</h1>
 
               <div className="mt-1 flex flex-col text-xs text-amber-200 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:text-sm">
                 <span className="truncate font-medium">
@@ -131,7 +128,8 @@ export default function SellerDashboard() {
                     <span className="hidden sm:inline">|</span>
                     <span
                       className="break-all text-left sm:break-normal"
-                      dir="ltr">
+                      dir="ltr"
+                    >
                       {user.phone}
                     </span>
                   </>
@@ -143,7 +141,8 @@ export default function SellerDashboard() {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-xl bg-amber-700 px-5 py-3 font-bold transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-white/70 md:w-auto">
+            className="w-full rounded-xl bg-amber-700 px-5 py-3 font-bold transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-white/70 md:w-auto"
+          >
             خروج 🚪
           </button>
         </div>
@@ -153,20 +152,24 @@ export default function SellerDashboard() {
         {/* Stats */}
         <section
           className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4"
-          aria-label="آمار سفارشات">
+          aria-label="آمار سفارشات"
+        >
           {statCards.map((stat) => (
             <article
               key={stat.title}
-              className="rounded-2xl border border-white/80 bg-white p-3 shadow-sm transition-shadow hover:shadow-md sm:p-4">
+              className="rounded-2xl border border-white/80 bg-white p-3 shadow-sm transition-shadow hover:shadow-md sm:p-4"
+            >
               <div className="flex flex-col items-center text-center sm:flex-row sm:text-right md:flex-col md:text-center lg:flex-row lg:text-right">
                 <div
-                  className={`mb-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl sm:mb-0 sm:ml-3 md:mb-2 md:ml-0 lg:mb-0 lg:ml-3 ${stat.iconClassName}`}>
+                  className={`mb-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl sm:mb-0 sm:ml-3 md:mb-2 md:ml-0 lg:mb-0 lg:ml-3 ${stat.iconClassName}`}
+                >
                   {stat.icon}
                 </div>
 
                 <div className="min-w-0">
                   <p
-                    className={`text-2xl font-extrabold sm:text-3xl ${stat.valueClassName}`}>
+                    className={`text-2xl font-extrabold sm:text-3xl ${stat.valueClassName}`}
+                  >
                     {stat.value.toLocaleString("fa-IR")}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-gray-500 sm:text-sm">
@@ -181,7 +184,8 @@ export default function SellerDashboard() {
         {/* Quick action */}
         <Link
           href="/visitor"
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-4 text-center text-base font-bold text-white shadow-md transition-all hover:bg-blue-800 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-200 sm:text-lg md:text-xl">
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-4 text-center text-base font-bold text-white shadow-md transition-all hover:bg-blue-800 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-200 sm:text-lg md:text-xl"
+        >
           <span className="text-xl sm:text-2xl">🛒</span>
           <span>ثبت سفارش جدید</span>
           <span className="hidden text-sm font-normal text-blue-100 sm:inline">
@@ -223,7 +227,8 @@ export default function SellerDashboard() {
                 return (
                   <article
                     key={order.id}
-                    className="overflow-hidden rounded-2xl border border-white/90 bg-white shadow-sm transition-shadow hover:shadow-lg">
+                    className="overflow-hidden rounded-2xl border border-white/90 bg-white shadow-sm transition-shadow hover:shadow-lg"
+                  >
                     {/* Order summary */}
                     <button
                       type="button"
@@ -231,7 +236,8 @@ export default function SellerDashboard() {
                         setExpandedOrder(isExpanded ? null : order.id)
                       }
                       className="w-full p-4 text-right focus:outline-none focus:ring-4 focus:ring-inset focus:ring-amber-100 sm:p-5"
-                      aria-expanded={isExpanded}>
+                      aria-expanded={isExpanded}
+                    >
                       <div className="flex min-w-0 items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="mb-2 flex flex-wrap items-center gap-2 sm:gap-3">
@@ -240,7 +246,8 @@ export default function SellerDashboard() {
                             </span>
 
                             <span
-                              className={`${STATUS_BADGE[order.status] || "rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700"} max-w-full`}>
+                              className={`${STATUS_BADGE[order.status] || "rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700"} max-w-full`}
+                            >
                               {STATUS_LABELS[order.status] || order.status}
                             </span>
                           </div>
@@ -254,7 +261,8 @@ export default function SellerDashboard() {
                             {order.user?.phone && (
                               <p
                                 className="break-all text-sm text-gray-500 sm:break-normal"
-                                dir="ltr">
+                                dir="ltr"
+                              >
                                 {order.user.phone}
                               </p>
                             )}
@@ -270,13 +278,17 @@ export default function SellerDashboard() {
                               <span className="rounded-lg bg-amber-50 px-2.5 py-1">
                                 {totalItemQuantity.toLocaleString("fa-IR")} عدد
                               </span>
+                              <span className="rounded-lg bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700">
+                                جمع سفارش: {formatPrice(order.totalAmount)}
+                              </span>
                             </div>
                           </div>
                         </div>
 
                         <span
                           className="mt-1 shrink-0 text-xl text-gray-400 transition-transform sm:text-2xl"
-                          aria-hidden="true">
+                          aria-hidden="true"
+                        >
                           {isExpanded ? "▲" : "▼"}
                         </span>
                       </div>
@@ -288,8 +300,7 @@ export default function SellerDashboard() {
                         <div className="space-y-4">
                           {order.notes && (
                             <div className="break-words rounded-xl border border-yellow-100 bg-yellow-50 p-3 text-sm leading-7 text-yellow-900 sm:p-4 sm:text-base">
-                              <strong>📝 توضیحات:</strong>{" "}
-                              {order.notes}
+                              <strong>📝 توضیحات:</strong> {order.notes}
                             </div>
                           )}
 
@@ -304,45 +315,92 @@ export default function SellerDashboard() {
                               </p>
                             ) : (
                               <div className="divide-y divide-gray-200">
-                                {order.items.map((item: any) => (
-                                  <div
-                                    key={item.id}
-                                    className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="break-words font-medium leading-6 text-gray-800">
-                                        {item.productName ||
-                                          item.product?.name ||
-                                          "محصول نامشخص"}
-                                      </p>
+                                {order.items.map((item: any) => {
+                                  const quantity = Number(item.quantity || 0);
+                                  const unitPrice = Number(item.unitPrice || 0);
+                                  const itemTotal = quantity * unitPrice;
 
-                                      {item.note && (
-                                        <p className="mt-1 break-words text-xs leading-5 text-gray-400 sm:text-sm">
-                                          یادداشت: {item.note}
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <p className="break-words font-medium leading-6 text-gray-800">
+                                          {item.productName ||
+                                            item.product?.name ||
+                                            "محصول نامشخص"}
                                         </p>
-                                      )}
-                                    </div>
 
-                                    <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800">
-                                      {Number(
-                                        item.quantity || 0,
-                                      ).toLocaleString("fa-IR")}{" "}
-                                      عدد
-                                    </span>
-                                  </div>
-                                ))}
+                                        {item.note && (
+                                          <p className="mt-1 break-words text-xs leading-5 text-gray-400 sm:text-sm">
+                                            یادداشت: {item.note}
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      <div className="grid shrink-0 grid-cols-2 gap-2 text-xs sm:min-w-72 sm:text-sm">
+                                        <div className="rounded-xl bg-amber-100 px-3 py-2 text-center text-amber-800">
+                                          <p className="text-[11px] font-medium text-amber-600 sm:text-xs">
+                                            تعداد
+                                          </p>
+                                          <p className="mt-0.5 font-bold">
+                                            {quantity.toLocaleString("fa-IR")}{" "}
+                                            عدد
+                                          </p>
+                                        </div>
+
+                                        <div className="rounded-xl bg-blue-50 px-3 py-2 text-center text-blue-700">
+                                          <p className="text-[11px] font-medium text-blue-500 sm:text-xs">
+                                            قیمت واحد
+                                          </p>
+                                          <p className="mt-0.5 font-bold">
+                                            {formatPrice(unitPrice)}
+                                          </p>
+                                        </div>
+
+                                        <div className="col-span-2 rounded-xl bg-emerald-50 px-3 py-2 text-center text-emerald-700">
+                                          <p className="text-[11px] font-medium text-emerald-500 sm:text-xs">
+                                            جمع این کالا
+                                          </p>
+                                          <p className="mt-0.5 font-extrabold">
+                                            {formatPrice(itemTotal)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
 
+                          <div className="flex flex-col gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs font-medium text-emerald-600 sm:text-sm">
+                                مبلغ کل سفارش
+                              </p>
+                              <p className="mt-1 text-xl font-extrabold text-emerald-800 sm:text-2xl">
+                                {formatPrice(order.totalAmount)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-emerald-700 sm:text-sm">
+                              {totalItemQuantity.toLocaleString("fa-IR")} عدد
+                              کالا در{" "}
+                              {Number(order.items?.length || 0).toLocaleString(
+                                "fa-IR",
+                              )}{" "}
+                              قلم
+                            </p>
+                          </div>
+
                           <div className="flex flex-col gap-1 rounded-xl border border-gray-100 bg-gray-50/50 px-3 py-2 text-xs text-gray-400 sm:flex-row sm:items-center sm:justify-between sm:px-4">
                             <span>
-                              شناسه سفارش:{" "}
-                              <span dir="ltr">{order.id}</span>
+                              شناسه سفارش: <span dir="ltr">{order.id}</span>
                             </span>
                             <span>
                               وضعیت:{" "}
-                              {STATUS_LABELS[order.status] ||
-                                order.status}
+                              {STATUS_LABELS[order.status] || order.status}
                             </span>
                           </div>
                         </div>
@@ -363,9 +421,7 @@ function LoadingState() {
   return (
     <div className="flex min-h-52 flex-col items-center justify-center rounded-2xl bg-white py-16 shadow-sm">
       <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-700 border-t-transparent" />
-      <p className="mt-4 text-sm text-gray-400">
-        در حال بارگذاری سفارشات...
-      </p>
+      <p className="mt-4 text-sm text-gray-400">در حال بارگذاری سفارشات...</p>
     </div>
   );
 }
@@ -378,8 +434,7 @@ function EmptyState() {
         هیچ سفارشی برای شما ثبت نشده است.
       </p>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-400 sm:text-base">
-        به‌زودی ویزیتورها یا خودتان می‌توانید برای این فروشگاه سفارش
-        ثبت کنید.
+        به‌زودی ویزیتورها یا خودتان می‌توانید برای این فروشگاه سفارش ثبت کنید.
       </p>
     </div>
   );

@@ -325,13 +325,11 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
               </Text>
 
               <Text style={styles.colPrice}>
-                {rtlText(`${formatPrice(item.unitPrice)} تومان`)}
+                {rtlText(`${formatPrice(item.unitPrice)} ریال`)}
               </Text>
 
               <Text style={styles.colTotal}>
-                {rtlText(
-                  `${formatPrice(item.quantity * item.unitPrice)} تومان`,
-                )}
+                {rtlText(`${formatPrice(item.quantity * item.unitPrice)} ریال`)}
               </Text>
             </View>
           ))}
@@ -346,7 +344,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
             <Text style={styles.totalLabel}>{rtlText("جمع کل سفارش")}</Text>
 
             <Text style={styles.totalValue}>
-              {rtlText(`${formatPrice(orderTotal)} تومان`)}
+              {rtlText(`${formatPrice(orderTotal)} ریال`)}
             </Text>
           </View>
 
@@ -354,7 +352,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
             <Text style={styles.totalLabel}>{rtlText("مبلغ پرداختی")}</Text>
 
             <Text style={styles.totalValue}>
-              {rtlText(`${formatPrice(paidAmount)} تومان`)}
+              {rtlText(`${formatPrice(paidAmount)} ریال`)}
             </Text>
           </View>
 
@@ -366,7 +364,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
                 styles.totalValue,
                 remaining > 0 ? styles.dangerText : {},
               ]}>
-              {rtlText(`${formatPrice(remaining)} تومان`)}
+              {rtlText(`${formatPrice(remaining)} ریال`)}
             </Text>
           </View>
 

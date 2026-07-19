@@ -786,7 +786,7 @@ export default function VisitorOrderPage() {
                     />
 
                     <RangeFilter
-                      label="بازه قیمت (تومان)"
+                      label="بازه قیمت (ریال)"
                       minValue={draftSearch.priceMin || ""}
                       maxValue={draftSearch.priceMax || ""}
                       onMinChange={(value) =>
@@ -974,7 +974,7 @@ export default function VisitorOrderPage() {
                                   "fa-IR",
                                 )}
                                 <span className="mr-1 text-xs font-medium text-gray-500">
-                                  تومان
+                                  ریال
                                 </span>
                               </p>
                             </div>
@@ -1161,7 +1161,7 @@ export default function VisitorOrderPage() {
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
                             {Number(product.price || 0).toLocaleString("fa-IR")}{" "}
-                            تومان × {quantity.toLocaleString("fa-IR")}
+                            ریال × {quantity.toLocaleString("fa-IR")}
                           </p>
                         </div>
                       </div>
@@ -1171,7 +1171,7 @@ export default function VisitorOrderPage() {
                           {quantity.toLocaleString("fa-IR")} عدد
                         </span>
                         <span className="text-sm font-black text-gray-700">
-                          {lineTotal.toLocaleString("fa-IR")} تومان
+                          {lineTotal.toLocaleString("fa-IR")} ریال
                         </span>
                       </div>
                     </div>
@@ -1185,7 +1185,7 @@ export default function VisitorOrderPage() {
                     مبلغ تقریبی کل
                   </span>
                   <span className="text-lg font-black text-blue-700 sm:text-xl">
-                    {estimatedTotal.toLocaleString("fa-IR")} تومان
+                    {estimatedTotal.toLocaleString("fa-IR")} ریال
                   </span>
                 </div>
               </div>
@@ -1243,7 +1243,7 @@ export default function VisitorOrderPage() {
                 <p className="mt-0.5 text-xs text-gray-500">
                   مبلغ تقریبی:{" "}
                   <span className="font-bold text-blue-700">
-                    {estimatedTotal.toLocaleString("fa-IR")} تومان
+                    {estimatedTotal.toLocaleString("fa-IR")} ریال
                   </span>
                 </p>
               </div>

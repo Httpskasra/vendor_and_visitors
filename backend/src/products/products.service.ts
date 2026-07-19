@@ -63,25 +63,37 @@ export class ProductsService {
       limit = 20,
     } = dto;
 
+    // نسخه بدون فاصله عبارت جستجو
+    // مثال: «پیت زا» به «پیتزا» تبدیل می‌شود.
+    const compactName = name?.replace(/\s+/g, "");
+
+    // بخش‌های عبارت جستجو
+    // مثال: «پیت زا» => ["پیت", "زا"]
+    const nameTokens = name?.split(/\s+/).filter(Boolean) ?? [];
+
     // ── WHERE ──────────────────────────────────────────────────────
     const where: Prisma.ProductWhereInput = {
-      // جستجو روی nameNormalized اگر موجود باشد، وگرنه name
-      // هر دو را چک می‌کنیم تا با داده‌های قدیمی هم کار کند
       ...(name && {
         OR: [
-          // جستجو روی فیلد نرمال‌شده (دقیق‌تر)
           {
             nameNormalized: {
-              contains: name,
+              contains: compactName,
               mode: "insensitive" as Prisma.QueryMode,
             },
           },
-          // fallback روی name اصلی (برای داده‌های قدیمی بدون nameNormalized)
           {
             name: {
               contains: name,
               mode: "insensitive" as Prisma.QueryMode,
             },
+          },
+          {
+            AND: nameTokens.map((token) => ({
+              name: {
+                contains: token,
+                mode: "insensitive" as Prisma.QueryMode,
+              },
+            })),
           },
         ],
       }),
