@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateProductDto } from "./dto/update-product.dto";
+import { compactPersian, normalizePersian } from "../utils/persian-normalize";
 import {
   SearchProductsDto,
   SortField,
@@ -63,33 +64,34 @@ export class ProductsService {
       limit = 20,
     } = dto;
 
-    // نسخه بدون فاصله عبارت جستجو
-    // مثال: «پیت زا» به «پیتزا» تبدیل می‌شود.
-    const compactName = name?.replace(/\s+/g, "");
-
-    // بخش‌های عبارت جستجو
-    // مثال: «پیت زا» => ["پیت", "زا"]
-    const nameTokens = name?.split(/\s+/).filter(Boolean) ?? [];
+    const normalizedName = normalizePersian(name);
+    const compactName = compactPersian(name);
+    const nameTokens = normalizedName.split(/\s+/).filter(Boolean);
 
     // ── WHERE ──────────────────────────────────────────────────────
     const where: Prisma.ProductWhereInput = {
-      ...(name && {
+      ...(normalizedName && {
         OR: [
           {
             nameNormalized: {
-              contains: compactName,
+              contains: normalizedName,
               mode: "insensitive" as Prisma.QueryMode,
             },
           },
-          {
-            name: {
-              contains: name,
-              mode: "insensitive" as Prisma.QueryMode,
-            },
-          },
+          // برای نام‌هایی که داخل دیتابیس بدون فاصله ثبت شده‌اند.
+          ...(compactName !== normalizedName
+            ? [
+                {
+                  nameNormalized: {
+                    contains: compactName,
+                    mode: "insensitive" as Prisma.QueryMode,
+                  },
+                },
+              ]
+            : []),
           {
             AND: nameTokens.map((token) => ({
-              name: {
+              nameNormalized: {
                 contains: token,
                 mode: "insensitive" as Prisma.QueryMode,
               },

@@ -9,7 +9,8 @@
     "start:prod": "node dist/src/main",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "products:normalize": "ts-node prisma/scripts/backfill-product-normalized-names.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
