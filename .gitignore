@@ -306,7 +306,7 @@ notes.local.md
 *.temp
 *.orig
 *.rej
-
+*.zip
 # Do not ignore source maps by default.
 # Uncomment if you do not want source maps committed:
 # *.map

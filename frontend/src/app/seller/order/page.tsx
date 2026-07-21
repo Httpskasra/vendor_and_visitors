@@ -8,6 +8,8 @@ import toast from "react-hot-toast";
 
 import api from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
+import DualQuantitySelector from "@/components/DualQuantitySelector";
+import { calculateDualPrice, getPartialStock, getWholeStock, type DualQuantity } from "@/lib/units";
 
 // ── Search types ──────────────────────────────────────────────────────────────
 type SortField = "name" | "price" | "quantityMain" | "categoryMain" | "id";
@@ -44,7 +46,7 @@ export default function SellerOrderPage() {
 
   const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
-  const [cart, setCart] = useState<Record<number, number>>({});
+  const [cart, setCart] = useState<Record<number, DualQuantity>>({});
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -213,45 +215,24 @@ export default function SellerOrderPage() {
     }
   }
 
-  function getProductStock(product: any) {
-    const stock = Number(product.quantityMain ?? 0);
-
-    return Number.isFinite(stock) && stock > 0 ? stock : 0;
-  }
-
-  function updateCart(
-    productId: number,
-    requestedQuantity: number,
-    maxQuantity: number,
-  ) {
-    const nextQuantity = Math.max(0, Math.min(requestedQuantity, maxQuantity));
-
-    setCart((currentCart) => {
-      const nextCart = { ...currentCart };
-
-      if (nextQuantity === 0) {
-        delete nextCart[productId];
-      } else {
-        nextCart[productId] = nextQuantity;
-      }
-
-      return nextCart;
+  function updateCart(productId: number, value: DualQuantity) {
+    setCart((current) => {
+      const next = { ...current };
+      if (value.whole === 0 && value.partial === 0) delete next[productId];
+      else next[productId] = value;
+      return next;
     });
   }
 
   const cartTotalItems = useMemo(
-    () => Object.values(cart).reduce((sum, quantity) => sum + quantity, 0),
+    () => Object.values(cart).reduce((sum, value) => sum + value.whole + value.partial, 0),
     [cart],
   );
 
   const selectedProductsCount = Object.keys(cart).length;
 
   const estimatedTotal = useMemo(
-    () =>
-      products.reduce((sum, product) => {
-        const quantity = cart[product.id] || 0;
-        return sum + quantity * Number(product.price || 0);
-      }, 0),
+    () => products.reduce((sum, product) => sum + calculateDualPrice(product, cart[product.id] || { whole: 0, partial: 0 }), 0),
     [cart, products],
   );
 
@@ -271,9 +252,10 @@ export default function SellerOrderPage() {
     setSubmitting(true);
 
     try {
-      const items = Object.entries(cart).map(([productId, quantity]) => ({
+      const items = Object.entries(cart).map(([productId, value]) => ({
         productId: Number(productId),
-        quantity,
+        wholeQuantity: value.whole,
+        partialQuantity: value.partial,
       }));
 
       await api.post("/orders", {
@@ -597,11 +579,11 @@ export default function SellerOrderPage() {
           <EmptyState />
         : <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => {
-              const quantity = cart[product.id] || 0;
-              const stock = getProductStock(product);
-              const inStock = stock > 0;
-              const isSelected = quantity > 0;
-              const hasReachedLimit = quantity >= stock;
+              const value = cart[product.id] || { whole: 0, partial: 0 };
+              const wholeStock = getWholeStock(product);
+              const partialStock = getPartialStock(product);
+              const inStock = wholeStock > 0 || partialStock > 0;
+              const isSelected = value.whole > 0 || value.partial > 0;
 
               return (
                 <article
@@ -640,7 +622,7 @@ export default function SellerOrderPage() {
                           : "bg-red-100/95 text-red-700"
                         }`}>
                         {inStock ?
-                          `موجودی ${stock.toLocaleString("fa-IR")}`
+                          `${product.unitType || "کلی"}: ${wholeStock.toLocaleString("fa-IR")} | ${product.subUnitType || "جزئی"}: ${partialStock.toLocaleString("fa-IR")}`
                         : "ناموجود"}
                       </span>
                     </div>
@@ -677,7 +659,7 @@ export default function SellerOrderPage() {
 
                       <div className="mt-4 flex items-end justify-between gap-3 border-t border-gray-100 pt-4">
                         <div>
-                          <p className="text-xs text-gray-400">قیمت واحد</p>
+                          <p className="text-xs text-gray-400">قیمت واحد کلی ({product.unitType || "کلی"})</p>
                           <p className="mt-1 text-lg font-black text-amber-700">
                             {Number(product.price || 0).toLocaleString("fa-IR")}
                             <span className="mr-1 text-xs font-medium text-gray-500">
@@ -686,12 +668,12 @@ export default function SellerOrderPage() {
                           </p>
                         </div>
 
-                        {quantity > 0 && (
+                        {isSelected && (
                           <div className="text-left">
                             <p className="text-xs text-gray-400">جمع محصول</p>
                             <p className="mt-1 text-sm font-bold text-gray-700">
                               {(
-                                Number(product.price || 0) * quantity
+                                calculateDualPrice(product, value)
                               ).toLocaleString("fa-IR")}
                             </p>
                           </div>
@@ -702,59 +684,12 @@ export default function SellerOrderPage() {
                     {/* Quantity selector */}
                     <div className="mt-4">
                       {!inStock ?
-                        <button
-                          type="button"
-                          disabled
-                          className="h-12 w-full cursor-not-allowed rounded-2xl bg-gray-100 font-bold text-gray-400">
-                          این محصول موجود نیست
-                        </button>
-                      : quantity === 0 ?
-                        <button
-                          type="button"
-                          onClick={() => updateCart(product.id, 1, stock)}
-                          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-600 font-bold text-white transition-colors hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-200">
-                          <span className="text-xl">＋</span>
-                          افزودن به سفارش
-                        </button>
-                      : <div className="flex h-12 items-center overflow-hidden rounded-2xl border-2 border-amber-200 bg-amber-50">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateCart(product.id, quantity - 1, stock)
-                            }
-                            className="flex h-full w-14 shrink-0 items-center justify-center text-2xl font-bold text-red-600 transition-colors hover:bg-red-100"
-                            aria-label={`کاهش تعداد ${product.name}`}>
-                            −
-                          </button>
-
-                          <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
-                            <span className="text-lg font-black text-gray-800">
-                              {quantity.toLocaleString("fa-IR")}
-                            </span>
-                            <span className="text-[10px] text-gray-500">
-                              عدد انتخاب شده
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateCart(product.id, quantity + 1, stock)
-                            }
-                            disabled={hasReachedLimit}
-                            className="flex h-full w-14 shrink-0 items-center justify-center text-2xl font-bold text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-30"
-                            aria-label={`افزایش تعداد ${product.name}`}>
-                            ＋
-                          </button>
-                        </div>
-                      }
-
-                      {hasReachedLimit && inStock && (
-                        <p className="mt-2 text-center text-xs font-medium text-amber-700">
-                          حداکثر موجودی این محصول انتخاب شده است
-                        </p>
-                      )}
-                    </div>
+                        <button type="button" disabled className="h-12 w-full cursor-not-allowed rounded-2xl bg-gray-100 font-bold text-gray-400">این محصول موجود نیست</button>
+                      : <DualQuantitySelector product={product} value={value} onChange={(next) => updateCart(product.id, next)} accent="amber" />}
+                      <p className="mt-2 text-center text-xs text-gray-500">
+                        هر {product.unitType || "واحد کلی"} = {Number(product.countPerUnit || 1).toLocaleString("fa-IR")} {product.subUnitType || "واحد جزئی"}
+                      </p>
+                      </div>
                   </div>
                 </article>
               );

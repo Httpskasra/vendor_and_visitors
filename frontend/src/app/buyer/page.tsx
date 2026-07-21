@@ -156,7 +156,7 @@ export default function BuyerDashboard() {
                         <p className="text-blue-600 text-sm mt-1 font-semibold">
                           {order.items?.length} قلم کالا —{" "}
                           {order.items?.reduce(
-                            (s: number, i: any) => s + i.quantity,
+                            (s: number, i: any) => s + Number(i.wholeQuantity ?? i.quantity ?? 0) + Number(i.partialQuantity ?? 0),
                             0,
                           )}{" "}
                           عدد
@@ -244,7 +244,7 @@ export default function BuyerDashboard() {
                                 </span>
                               )}
                               <span className="bg-blue-100 text-blue-700 font-bold px-3 py-1 rounded-full text-sm">
-                                {item.quantity} عدد
+                                {item.wholeQuantity ?? item.quantity ?? 0} {item.wholeUnitType || "کلی"} + {item.partialQuantity ?? 0} {item.partialUnitType || "جزئی"}
                               </span>
                             </div>
                           </div>

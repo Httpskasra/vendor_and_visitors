@@ -7,6 +7,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 
 import api from "@/lib/api";
+import { orderItemTotal } from "@/lib/units";
 import { getUser, logout } from "@/lib/auth";
 import { STATUS_LABELS, STATUS_BADGE, formatDateTime } from "@/lib/persian";
 
@@ -316,9 +317,10 @@ export default function SellerDashboard() {
                             ) : (
                               <div className="divide-y divide-gray-200">
                                 {order.items.map((item: any) => {
-                                  const quantity = Number(item.quantity || 0);
+                                  const wholeQuantity = Number(item.wholeQuantity ?? item.quantity ?? 0);
+                                  const partialQuantity = Number(item.partialQuantity ?? 0);
                                   const unitPrice = Number(item.unitPrice || 0);
-                                  const itemTotal = quantity * unitPrice;
+                                  const itemTotal = orderItemTotal(item);
 
                                   return (
                                     <div
@@ -345,7 +347,7 @@ export default function SellerDashboard() {
                                             تعداد
                                           </p>
                                           <p className="mt-0.5 font-bold">
-                                            {quantity.toLocaleString("fa-IR")}{" "}
+                                            {wholeQuantity.toLocaleString("fa-IR")} {item.wholeUnitType || "کلی"} + {partialQuantity.toLocaleString("fa-IR")} {item.partialUnitType || "جزئی"}{" "}
                                             عدد
                                           </p>
                                         </div>

@@ -1,4 +1,3 @@
-// orders/dto/create-order.dto.ts
 import { IsInt, IsOptional, IsString, IsArray, ValidateNested, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -7,8 +6,12 @@ export class OrderItemDto {
   productId: number;
 
   @IsInt()
-  @Min(1)
-  quantity: number;
+  @Min(0)
+  wholeQuantity: number;
+
+  @IsInt()
+  @Min(0)
+  partialQuantity: number;
 
   @IsOptional()
   @IsString()
@@ -17,7 +20,7 @@ export class OrderItemDto {
 
 export class CreateOrderDto {
   @IsInt()
-  sellerId: number; // فروشنده (کاربر SHOP_OWNER)
+  sellerId: number;
 
   @IsOptional()
   @IsString()

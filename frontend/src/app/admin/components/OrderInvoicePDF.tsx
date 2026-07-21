@@ -321,7 +321,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
               </Text>
 
               <Text style={styles.colQty}>
-                {rtlText(String(item.quantity))}
+                {rtlText(`${item.wholeQuantity ?? item.quantity ?? 0} ${item.wholeUnitType || "کلی"} + ${item.partialQuantity ?? 0} ${item.partialUnitType || "جزئی"}`)}
               </Text>
 
               <Text style={styles.colPrice}>
@@ -329,7 +329,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
               </Text>
 
               <Text style={styles.colTotal}>
-                {rtlText(`${formatPrice(item.quantity * item.unitPrice)} ریال`)}
+                {rtlText(`${formatPrice(item.unitPrice * ((item.wholeQuantity ?? item.quantity ?? 0) + (item.partialQuantity ?? 0) / Math.max(1, item.countPerUnit ?? 1)))} ریال`)}
               </Text>
             </View>
           ))}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
 import api from "@/lib/api";
+import { orderItemTotal } from "@/lib/units";
 import { getUser, logout } from "@/lib/auth";
 import {
   STATUS_LABELS,
@@ -123,7 +124,9 @@ export default function AdminDashboard() {
   const [editingItem, setEditingItem] = useState<{
     orderId: number;
     itemId: number;
-    quantity: number;
+    wholeQuantity: number;
+    partialQuantity: number;
+    countPerUnit: number;
     unitPrice: number;
   } | null>(null);
 
@@ -390,6 +393,12 @@ export default function AdminDashboard() {
     categoryMain: "",
     categorySecond: "",
     imageBase64: "",
+    unitType: "",
+    subUnitType: "",
+    countPerUnit: 1,
+    quantityMain: 0,
+    quantityPartial: 0,
+    price: 0,
   });
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -399,6 +408,12 @@ export default function AdminDashboard() {
         categoryMain: editForm.categoryMain,
         categorySecond: editForm.categorySecond || null,
         imageUrl: editForm.imageBase64 || null,
+        unitType: editForm.unitType,
+        subUnitType: editForm.subUnitType,
+        countPerUnit: Number(editForm.countPerUnit),
+        quantityMain: Number(editForm.quantityMain),
+        quantityPartial: Number(editForm.quantityPartial),
+        price: Number(editForm.price),
       });
       toast.success("محصول بروز شد");
       setEditingProduct(null);
@@ -411,6 +426,13 @@ export default function AdminDashboard() {
               categoryMain: editForm.categoryMain,
               categorySecond: editForm.categorySecond || null,
               imageUrl: editForm.imageBase64 || null,
+              unitType: editForm.unitType,
+              subUnitType: editForm.subUnitType,
+              countPerUnit: Number(editForm.countPerUnit),
+              quantityMain: Number(editForm.quantityMain),
+              quantityPartial: Number(editForm.quantityPartial),
+              quantity: `${Number(editForm.quantityMain)}+${Number(editForm.quantityPartial)}`,
+              price: Number(editForm.price),
             }
           : p,
         ),
@@ -460,12 +482,16 @@ export default function AdminDashboard() {
   async function updateOrderItem(
     orderId: number,
     itemId: number,
-    quantity: number,
+    wholeQuantity: number,
+    partialQuantity: number,
+    countPerUnit: number,
     unitPrice: number,
   ) {
     try {
       await api.patch(`/orders/${orderId}/items/${itemId}`, {
-        quantity,
+        wholeQuantity,
+        partialQuantity,
+        countPerUnit,
         unitPrice,
       });
       toast.success("آیتم سفارش بروز شد");
@@ -927,15 +953,15 @@ export default function AdminDashboard() {
                             </dd>
                           </div>
                           <div>
-                            <dt className="text-gray-400">تعداد واحد</dt>
+                            <dt className="text-gray-400">موجودی کلی</dt>
                             <dd className="mt-1 font-semibold text-gray-700">
                               {product.quantityMain}
                             </dd>
                           </div>
                           <div>
-                            <dt className="text-gray-400">تکی</dt>
+                            <dt className="text-gray-400">موجودی جزئی</dt>
                             <dd className="mt-1 font-semibold text-gray-700">
-                              {product.quantityBonus}
+                              {product.quantityPartial}
                             </dd>
                           </div>
                           <div>
@@ -954,6 +980,12 @@ export default function AdminDashboard() {
                               categoryMain: product.categoryMain || "",
                               categorySecond: product.categorySecond || "",
                               imageBase64: product.imageUrl || "",
+                              unitType: product.unitType || "",
+                              subUnitType: product.subUnitType || "",
+                              countPerUnit: Number(product.countPerUnit || 1),
+                              quantityMain: Number(product.quantityMain || 0),
+                              quantityPartial: Number(product.quantityPartial ?? product.quantityPartial ?? 0),
+                              price: Number(product.price || 0),
                             });
                           }}
                           className="mt-3 w-full rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100">
@@ -971,8 +1003,8 @@ export default function AdminDashboard() {
                           {[
                             "نام محصول",
                             "واحد",
-                            "تعداد واحد",
-                            "تکی",
+                            "موجودی کلی",
+                            "موجودی جزئی",
                             "دسته‌بندی",
                             "موجودی",
                             "قیمت",
@@ -1004,7 +1036,7 @@ export default function AdminDashboard() {
                               {product.quantityMain}
                             </td>
                             <td className="px-4 py-3 text-gray-600">
-                              {product.quantityBonus}
+                              {product.quantityPartial}
                             </td>
                             <td className="px-4 py-3">
                               <span className="whitespace-nowrap rounded-lg bg-gray-100 px-2 py-1 text-sm">
@@ -1040,9 +1072,14 @@ export default function AdminDashboard() {
                                   setEditingProduct(product);
                                   setEditForm({
                                     categoryMain: product.categoryMain || "",
-                                    categorySecond:
-                                      product.categorySecond || "",
+                                    categorySecond: product.categorySecond || "",
                                     imageBase64: product.imageUrl || "",
+                                    unitType: product.unitType || "",
+                                    subUnitType: product.subUnitType || "",
+                                    countPerUnit: Number(product.countPerUnit || 1),
+                                    quantityMain: Number(product.quantityMain || 0),
+                                    quantityPartial: Number(product.quantityPartial ?? product.quantityBonus ?? 0),
+                                    price: Number(product.price || 0),
                                   });
                                 }}
                                 className="whitespace-nowrap text-sm font-bold text-blue-600 hover:text-blue-800">
@@ -1122,6 +1159,27 @@ export default function AdminDashboard() {
                           })
                         }
                       />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="text-sm font-bold text-gray-700">نوع واحد کلی
+                        <input className="input-field mt-1 w-full" value={editForm.unitType} onChange={(e) => setEditForm({ ...editForm, unitType: e.target.value })} />
+                      </label>
+                      <label className="text-sm font-bold text-gray-700">نوع واحد جزئی
+                        <input className="input-field mt-1 w-full" value={editForm.subUnitType} onChange={(e) => setEditForm({ ...editForm, subUnitType: e.target.value })} />
+                      </label>
+                      <label className="text-sm font-bold text-gray-700">تعداد جزئی در هر واحد کلی
+                        <input type="number" min="1" className="input-field mt-1 w-full" value={editForm.countPerUnit} onChange={(e) => setEditForm({ ...editForm, countPerUnit: Number(e.target.value) })} />
+                      </label>
+                      <label className="text-sm font-bold text-gray-700">قیمت واحد کلی (ریال)
+                        <input type="number" min="0" className="input-field mt-1 w-full" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })} />
+                      </label>
+                      <label className="text-sm font-bold text-gray-700">موجودی کلی
+                        <input type="number" min="0" className="input-field mt-1 w-full" value={editForm.quantityMain} onChange={(e) => setEditForm({ ...editForm, quantityMain: Number(e.target.value) })} />
+                      </label>
+                      <label className="text-sm font-bold text-gray-700">موجودی جزئی
+                        <input type="number" min="0" className="input-field mt-1 w-full" value={editForm.quantityPartial} onChange={(e) => setEditForm({ ...editForm, quantityPartial: Number(e.target.value) })} />
+                      </label>
                     </div>
 
                     <div>
@@ -1381,26 +1439,29 @@ export default function AdminDashboard() {
                                           {isEditing ?
                                             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[auto_9rem_auto_11rem_auto_auto] xl:items-center">
                                               <label className="text-sm font-semibold text-gray-600">
-                                                تعداد
+                                                تعداد کلی ({item.wholeUnitType || "کلی"})
                                               </label>
                                               <input
                                                 type="number"
                                                 className="input-field w-full py-2"
-                                                value={editingItem.quantity}
+                                                value={editingItem.wholeQuantity}
                                                 onChange={(e) =>
                                                   setEditingItem((previous) =>
                                                     previous ?
                                                       {
                                                         ...previous,
-                                                        quantity: Number(
-                                                          e.target.value,
-                                                        ),
+                                                        wholeQuantity: Number(e.target.value),
                                                       }
                                                     : null,
                                                   )
                                                 }
-                                                min="1"
+                                                min="0"
                                               />
+
+                                              <label className="text-sm font-semibold text-gray-600">
+                                                تعداد جزئی ({item.partialUnitType || "جزئی"})
+                                              </label>
+                                              <input type="number" min="0" className="input-field w-full py-2" value={editingItem.partialQuantity} onChange={(e) => setEditingItem((previous) => previous ? { ...previous, partialQuantity: Number(e.target.value) } : null)} />
 
                                               <label className="text-sm font-semibold text-gray-600">
                                                 قیمت واحد
@@ -1430,7 +1491,9 @@ export default function AdminDashboard() {
                                                   updateOrderItem(
                                                     order.id,
                                                     item.id,
-                                                    editingItem.quantity,
+                                                    editingItem.wholeQuantity,
+                                                    editingItem.partialQuantity,
+                                                    editingItem.countPerUnit,
                                                     editingItem.unitPrice,
                                                   )
                                                 }
@@ -1448,7 +1511,7 @@ export default function AdminDashboard() {
                                             </div>
                                           : <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3 sm:text-sm">
                                               <span className="rounded-lg bg-white px-2 py-2">
-                                                تعداد: {item.quantity}
+                                                کلی: {item.wholeQuantity ?? item.quantity} {item.wholeUnitType || ""} | جزئی: {item.partialQuantity ?? 0} {item.partialUnitType || ""}
                                               </span>
                                               <span className="rounded-lg bg-white px-2 py-2">
                                                 قیمت واحد:{" "}
@@ -1458,7 +1521,7 @@ export default function AdminDashboard() {
                                               <span className="rounded-lg bg-blue-50 px-2 py-2 font-bold text-blue-700">
                                                 جمع:{" "}
                                                 {(
-                                                  item.quantity * item.unitPrice
+                                                  orderItemTotal(item)
                                                 ).toLocaleString()}{" "}
                                                 ریال
                                               </span>
@@ -1474,7 +1537,9 @@ export default function AdminDashboard() {
                                                 setEditingItem({
                                                   orderId: order.id,
                                                   itemId: item.id,
-                                                  quantity: item.quantity,
+                                                  wholeQuantity: item.wholeQuantity ?? item.quantity ?? 0,
+                                                  partialQuantity: item.partialQuantity ?? 0,
+                                                  countPerUnit: item.countPerUnit ?? 1,
                                                   unitPrice: item.unitPrice,
                                                 })
                                               }

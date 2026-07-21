@@ -33,8 +33,8 @@ interface ExcelRow {
 }
 
 interface ParsedQuantity {
-  main: number;
-  bonus: number;
+  whole: number;
+  partial: number;
 }
 
 function parseQuantity(
@@ -42,8 +42,8 @@ function parseQuantity(
 ): ParsedQuantity {
   if (raw === undefined || raw === null) {
     return {
-      main: 0,
-      bonus: 0,
+      whole: 0,
+      partial: 0,
     };
   }
 
@@ -55,16 +55,16 @@ function parseQuantity(
 
   if (bonusMatch) {
     return {
-      main: Number.parseInt(bonusMatch[1], 10),
-      bonus: Number.parseInt(bonusMatch[2], 10),
+      whole: Number.parseInt(bonusMatch[1], 10),
+      partial: Number.parseInt(bonusMatch[2], 10),
     };
   }
 
   const parsed = Number.parseInt(value, 10);
 
   return {
-    main: Number.isNaN(parsed) ? 0 : parsed,
-    bonus: 0,
+    whole: Number.isNaN(parsed) ? 0 : parsed,
+    partial: 0,
   };
 }
 
@@ -203,8 +203,8 @@ export class UploadService {
         }
 
         const {
-          main,
-          bonus,
+          whole,
+          partial,
         } = parseQuantity(row['تعداد']);
 
         const rawQuantity = String(
@@ -244,8 +244,8 @@ export class UploadService {
             getSecondCategory(row),
 
           quantity: rawQuantity || '0',
-          quantityMain: main,
-          quantityBonus: bonus,
+          quantityMain: whole,
+          quantityPartial: partial,
 
           price: getPrice(row),
         };
@@ -446,8 +446,8 @@ export class UploadService {
                   quantityMain:
                     product.quantityMain,
 
-                  quantityBonus:
-                    product.quantityBonus,
+                  quantityPartial:
+                    product.quantityPartial,
 
                   /*
                    * قیمت فقط از اکسل جدید می‌آید.

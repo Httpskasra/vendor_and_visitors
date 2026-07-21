@@ -60,7 +60,7 @@ model Product {
   categorySecond String?
   quantity       String
   quantityMain   Int
-  quantityBonus  Int
+  quantityPartial Int
   price          Float?
   imageUrl       String?
   orderItems     OrderItem[]
@@ -105,8 +105,15 @@ model OrderItem {
   // اطلاعات ثابت در لحظه ثبت سفارش
   productName     String
   productImageUrl String?
+  // قیمت واحد کلی در لحظه ثبت سفارش
   unitPrice       Float
-  quantity        Int
+  wholeQuantity   Int      @default(0)
+  partialQuantity Int      @default(0)
+  // برای سازگاری با سفارش‌های قدیمی؛ معادل تعداد واحد کلی
+  quantity        Int      @default(0)
+  wholeUnitType   String?
+  partialUnitType String?
+  countPerUnit    Int      @default(1)
   note            String?
 
   createdAt DateTime @default(now())

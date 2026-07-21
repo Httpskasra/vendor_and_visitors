@@ -42,6 +42,16 @@ export class ProductsService {
         categoryMain: dto.categoryMain,
         categorySecond: dto.categorySecond,
         imageUrl: dto.imageUrl,
+        unitType: dto.unitType,
+        subUnitType: dto.subUnitType,
+        countPerUnit: dto.countPerUnit,
+        quantityMain: dto.quantityMain,
+        quantityPartial: dto.quantityPartial,
+        quantity:
+          dto.quantityMain !== undefined || dto.quantityPartial !== undefined
+            ? `${dto.quantityMain ?? 0}+${dto.quantityPartial ?? 0}`
+            : undefined,
+        price: dto.price,
       },
     });
   }
