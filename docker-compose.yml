@@ -52,6 +52,14 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+  mock-api:
+    build:
+      context: ./mock-api
+      dockerfile: Dockerfile
+    container_name: ecommerce-mock-api
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
 
 volumes:
   postgres_data:
