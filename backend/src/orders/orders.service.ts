@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
+import { Prisma } from '@prisma/client';
+import { SearchOrdersDto } from './dto/search-orders.dto';
 
 function lineTotal(unitPrice: number, whole: number, partial: number, countPerUnit: number) {
   return unitPrice * (whole + partial / Math.max(1, countPerUnit));
@@ -116,9 +118,65 @@ export class OrdersService {
     });
   }
 
-  findAll() { return this.prisma.order.findMany({ include: { seller: { select: { id: true, name: true, phone: true } }, user: { select: { id: true, name: true, phone: true, role: true } }, items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } }); }
-  findByBuyer(buyerId: number) { return this.prisma.order.findMany({ where: { userId: buyerId }, include: { seller: { select: { id: true, name: true, phone: true } }, items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } }); }
-  findBySeller(sellerId: number) { return this.prisma.order.findMany({ where: { sellerId }, include: { user: { select: { id: true, name: true, phone: true } }, items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } }); }
+  async search(dto: SearchOrdersDto, scope: { buyerId?: number; sellerId?: number } = {}) {
+    const {
+      q, status, paymentStatus, sellerId, buyerId, dateFrom, dateTo,
+      amountMin, amountMax, cursor, limit = 20,
+    } = dto;
+    const numericId = q && /^\d+$/.test(q) ? Number(q) : undefined;
+    const filters: Prisma.OrderWhereInput = {
+      ...(scope.buyerId ? { userId: scope.buyerId } : buyerId ? { userId: buyerId } : {}),
+      ...(scope.sellerId ? { sellerId: scope.sellerId } : sellerId ? { sellerId } : {}),
+      ...(status && { status }),
+      ...(paymentStatus && { paymentStatus }),
+      ...(cursor && { id: { lt: cursor } }),
+      ...(q && {
+        OR: [
+          ...(numericId ? [{ id: numericId }] : []),
+          { notes: { contains: q, mode: 'insensitive' } },
+          { user: { is: { OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { phone: { contains: q } },
+          ] } } },
+          { seller: { is: { OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { phone: { contains: q } },
+          ] } } },
+          { items: { some: { OR: [
+            { productName: { contains: q, mode: 'insensitive' } },
+            { note: { contains: q, mode: 'insensitive' } },
+          ] } } },
+        ],
+      }),
+      ...((dateFrom || dateTo) && { createdAt: {
+        ...(dateFrom && { gte: new Date(dateFrom) }),
+        ...(dateTo && { lte: new Date(dateTo) }),
+      } }),
+      ...((amountMin !== undefined || amountMax !== undefined) && { totalAmount: {
+        ...(amountMin !== undefined && { gte: amountMin }),
+        ...(amountMax !== undefined && { lte: amountMax }),
+      } }),
+    };
+    const countWhere = { ...filters };
+    delete (countWhere as any).id;
+    const include = {
+      seller: { select: { id: true, name: true, phone: true } },
+      user: { select: { id: true, name: true, phone: true, role: true } },
+      items: { include: { product: true } },
+    } satisfies Prisma.OrderInclude;
+    const [rows, total, statusGroups] = await Promise.all([
+      this.prisma.order.findMany({ where: filters, include, orderBy: { id: 'desc' }, take: limit + 1 }),
+      this.prisma.order.count({ where: countWhere }),
+      this.prisma.order.groupBy({ by: ['status'], where: countWhere, _count: { _all: true } }),
+    ]);
+    const hasNextPage = rows.length > limit;
+    const data = hasNextPage ? rows.slice(0, limit) : rows;
+    return {
+      data,
+      pagination: { limit, total, hasNextPage, nextCursor: hasNextPage ? data[data.length - 1].id : null },
+      summary: { statusCounts: Object.fromEntries(statusGroups.map((group) => [group.status, group._count._all])) },
+    };
+  }
   findOne(id: number) { return this.prisma.order.findUnique({ where: { id }, include: { seller: { select: { id: true, name: true, phone: true } }, user: { select: { id: true, name: true, phone: true, role: true } }, items: { include: { product: true } } } }); }
   async updateStatus(id: number, status: string) { return this.prisma.order.update({ where: { id }, data: { status: status as any } }); }
 

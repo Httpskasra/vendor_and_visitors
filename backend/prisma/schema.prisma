@@ -36,6 +36,9 @@ model User {
   updatedAt DateTime @updatedAt
   ordersAsSeller Order[] @relation("SellerOrders") // سفارشاتی که برای این فروشنده ثبت شده
   ordersAsBuyer  Order[] @relation("BuyerOrders")  // سفارشاتی که این کاربر ثبت کرده
+
+  @@index([role, id])
+  @@index([createdAt, id])
 }
 
 model UploadBatch {
@@ -90,6 +93,13 @@ model Order {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   items          OrderItem[]
+
+  @@index([sellerId, id])
+  @@index([userId, id])
+  @@index([status, id])
+  @@index([paymentStatus, id])
+  @@index([createdAt, id])
+  @@index([totalAmount, id])
 }
 
 model OrderItem {

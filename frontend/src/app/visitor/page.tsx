@@ -10,6 +10,7 @@ import api from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
 import DualQuantitySelector from "@/components/DualQuantitySelector";
 import { calculateDualPrice, getPartialStock, getWholeStock, type DualQuantity } from "@/lib/units";
+import { useInfiniteUsers } from "@/components/InfiniteSearch";
 
 type Step = "select-seller" | "select-products" | "confirm";
 type SortField = "name" | "price" | "quantityMain" | "categoryMain" | "id";
@@ -57,10 +58,12 @@ export default function VisitorOrderPage() {
   const [user, setUser] = useState<any>(null);
   const [step, setStep] = useState<Step>("select-seller");
 
-  const [sellers, setSellers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSeller, setSelectedSeller] = useState<any>(null);
-  const [loadingSellers, setLoadingSellers] = useState(false);
+  const {
+    users: sellers, loading: loadingSellers, loadingMore: loadingMoreSellers,
+    total: totalSellers, sentinelRef: sellersSentinelRef, refresh: loadSellers, searchQ: searchSellers,
+  } = useInfiniteUsers("/users/sellers", step === "select-seller");
 
   const [showSellerModal, setShowSellerModal] = useState(false);
   const [newSeller, setNewSeller] = useState({
@@ -107,10 +110,10 @@ export default function VisitorOrderPage() {
   }, [router]);
 
   useEffect(() => {
-    if (step === "select-seller") {
-      void loadSellers();
-    }
-  }, [step]);
+    if (step !== "select-seller") return;
+    const timer = window.setTimeout(() => searchSellers(searchQuery), 350);
+    return () => window.clearTimeout(timer);
+  }, [step, searchQuery, searchSellers]);
 
   useEffect(() => {
     if (step === "select-products") {
@@ -149,20 +152,6 @@ export default function VisitorOrderPage() {
       observer.disconnect();
     };
   }, [hasNextPage, nextCursor, loadingMore, loadingProducts, searchParams]);
-  async function loadSellers() {
-    setLoadingSellers(true);
-
-    try {
-      const { data } = await api.get("/users/sellers");
-      setSellers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      toast.error("خطا در بارگذاری فروشندگان");
-      console.error(err);
-    } finally {
-      setLoadingSellers(false);
-    }
-  }
-
   async function searchProducts(params: SearchParams, cursor?: number) {
     const isLoadMore = cursor !== undefined;
 
@@ -395,19 +384,7 @@ export default function VisitorOrderPage() {
     setStep("select-seller");
   }
 
-  const normalizedSellerQuery = searchQuery.trim().toLowerCase();
-
-  const filteredSellers = sellers.filter((seller) => {
-    if (!normalizedSellerQuery) return true;
-
-    const sellerName = String(seller.name || "").toLowerCase();
-    const sellerPhone = String(seller.phone || "");
-
-    return (
-      sellerName.includes(normalizedSellerQuery) ||
-      sellerPhone.includes(searchQuery.trim())
-    );
-  });
+  const filteredSellers = sellers;
 
   const selectedCartProducts = Object.entries(cart)
     .map(([productId, value]) => {
@@ -554,6 +531,7 @@ export default function VisitorOrderPage() {
                   onChange={(event) => setSearchQuery(event.target.value)}
                 />
               </div>
+              <p className="mt-2 text-xs text-gray-400">{totalSellers.toLocaleString("fa-IR")} فروشنده یافت شد</p>
 
               <button
                 type="button"
@@ -606,6 +584,9 @@ export default function VisitorOrderPage() {
                     </div>
                   </button>
                 ))}
+                <div ref={sellersSentinelRef} className="col-span-full py-3 text-center text-sm text-gray-400">
+                  {loadingMoreSellers ? "در حال بارگذاری بیشتر..." : ""}
+                </div>
               </div>
             }
 

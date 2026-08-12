@@ -2,17 +2,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import toast from "react-hot-toast";
-import api from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
 import { STATUS_LABELS, STATUS_BADGE, formatDateTime } from "@/lib/persian";
+import { OrderSearch, useInfiniteOrders } from "@/components/InfiniteSearch";
 
 export default function BuyerDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const { orders, loading, loadingMore, total, statusCounts, draft, setDraft, apply, reset, sentinelRef } =
+    useInfiniteOrders("/orders/my", Boolean(user));
 
   useEffect(() => {
     const u = getUser();
@@ -25,20 +24,7 @@ export default function BuyerDashboard() {
       return;
     }
     setUser(u);
-    loadOrders();
   }, []);
-
-  async function loadOrders() {
-    setLoading(true);
-    try {
-      const { data } = await api.get("/orders/my");
-      setOrders(data);
-    } catch {
-      toast.error("خطا در بارگذاری سفارشات");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleLogout() {
     if (window.confirm("آیا می‌خواهید از سیستم خارج شوید؟")) {
@@ -46,11 +32,6 @@ export default function BuyerDashboard() {
       router.push("/login");
     }
   }
-
-  const statusCounts = orders.reduce((acc: any, o: any) => {
-    acc[o.status] = (acc[o.status] || 0) + 1;
-    return acc;
-  }, {});
 
   return (
     <div
@@ -78,7 +59,7 @@ export default function BuyerDashboard() {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-4">
           <div className="card text-center">
-            <p className="text-4xl font-bold text-blue-700">{orders.length}</p>
+            <p className="text-4xl font-bold text-blue-700">{total}</p>
             <p className="text-gray-500 mt-1 font-semibold">کل سفارشات</p>
           </div>
           <div className="card text-center">
@@ -113,6 +94,8 @@ export default function BuyerDashboard() {
           <h2 className="text-2xl font-bold text-gray-800 mb-4">
             📋 سفارشات من
           </h2>
+
+          <OrderSearch draft={draft} setDraft={setDraft} apply={apply} reset={reset} showPayment={false} />
 
           {loading ?
             <div className="flex justify-center py-16">
@@ -262,6 +245,9 @@ export default function BuyerDashboard() {
                   )}
                 </div>
               ))}
+              <div ref={sentinelRef} className="py-3 text-center text-sm text-gray-400">
+                {loadingMore ? "در حال بارگذاری بیشتر..." : ""}
+              </div>
             </div>
           }
         </div>

@@ -7,12 +7,14 @@ import {
   UseGuards,
   Patch,
   Param,
+  Query,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { ChangePasswordDto } from "./dto/change-password.dto";
 import { CreateSellerDto } from "./dto/create-seller.dto";
+import { SearchUsersDto } from "./dto/search-users.dto";
 
 @Controller("users")
 @UseGuards(JwtAuthGuard)
@@ -22,8 +24,8 @@ export class UsersController {
   @Get()
   @Roles("ADMIN")
   @UseGuards(RolesGuard)
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@Query() query: SearchUsersDto) {
+    return this.usersService.search(query);
   }
 
   @Post()
@@ -34,8 +36,8 @@ export class UsersController {
   }
 
   @Get("sellers")
-  getSellers() {
-    return this.usersService.findSellers();
+  getSellers(@Query() query: SearchUsersDto) {
+    return this.usersService.search(query, "SHOP_OWNER");
   }
   @Post('sellers')
 async createSeller(@Body() dto: CreateSellerDto) {

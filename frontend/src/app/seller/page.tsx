@@ -4,12 +4,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import toast from "react-hot-toast";
-
-import api from "@/lib/api";
 import { orderItemTotal } from "@/lib/units";
 import { getUser, logout } from "@/lib/auth";
 import { STATUS_LABELS, STATUS_BADGE, formatDateTime } from "@/lib/persian";
+import { OrderSearch, useInfiniteOrders } from "@/components/InfiniteSearch";
 
 function formatPrice(value: unknown) {
   const amount = Number(value ?? 0);
@@ -21,9 +19,10 @@ export default function SellerDashboard() {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const {
+    orders, loading, loadingMore, total, statusCounts, draft, setDraft, apply, reset, sentinelRef,
+  } = useInfiniteOrders("/orders/my-shop-orders", Boolean(user));
 
   useEffect(() => {
     const currentUser = getUser();
@@ -39,22 +38,7 @@ export default function SellerDashboard() {
     }
 
     setUser(currentUser);
-    void loadOrders();
   }, [router]);
-
-  async function loadOrders() {
-    setLoading(true);
-
-    try {
-      const { data } = await api.get("/orders/my-shop-orders");
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "خطا در بارگذاری سفارشات");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleLogout() {
     const confirmed = window.confirm("آیا از خروج از سیستم مطمئن هستید؟");
@@ -66,10 +50,10 @@ export default function SellerDashboard() {
   }
 
   const stats = {
-    total: orders.length,
-    pending: orders.filter((order) => order.status === "PENDING").length,
-    confirmed: orders.filter((order) => order.status === "CONFIRMED").length,
-    delivered: orders.filter((order) => order.status === "DELIVERED").length,
+    total,
+    pending: statusCounts.PENDING || 0,
+    confirmed: statusCounts.CONFIRMED || 0,
+    delivered: statusCounts.DELIVERED || 0,
   };
 
   const statCards = [
@@ -196,6 +180,7 @@ export default function SellerDashboard() {
 
         {/* Orders */}
         <section>
+          <OrderSearch draft={draft} setDraft={setDraft} apply={apply} reset={reset} />
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800 sm:text-2xl">
               <span>📋</span>
@@ -204,7 +189,7 @@ export default function SellerDashboard() {
 
             {!loading && orders.length > 0 && (
               <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-gray-500 shadow-sm sm:text-sm">
-                {orders.length.toLocaleString("fa-IR")} سفارش
+                {total.toLocaleString("fa-IR")} سفارش
               </span>
             )}
           </div>
@@ -411,6 +396,9 @@ export default function SellerDashboard() {
                   </article>
                 );
               })}
+              <div ref={sentinelRef} className="py-3 text-center text-sm text-gray-500">
+                {loadingMore ? "در حال بارگذاری بیشتر..." : ""}
+              </div>
             </div>
           )}
         </section>

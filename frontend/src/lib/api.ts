@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   // Browser always calls the Next.js origin. Next.js proxies /api to NestJS.
-  baseURL: '/api',
+  baseURL: 'http://localhost:4000/api',
 });
 
 api.interceptors.request.use(config => {

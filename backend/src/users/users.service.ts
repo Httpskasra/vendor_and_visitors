@@ -1,6 +1,8 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { Prisma, Role } from '@prisma/client';
+import { SearchUsersDto } from './dto/search-users.dto';
 
 @Injectable()
 export class UsersService {
@@ -23,12 +25,48 @@ export class UsersService {
     return user;
   }
 
-  findAll() {
-    return this.prisma.user.findMany({
-      where: { role: { in: ['VISITOR', 'SHOP_OWNER'] } },
-      select: { id: true, name: true, phone: true, role: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    });
+  async search(dto: SearchUsersDto, forcedRole?: Role) {
+    const { q, role, dateFrom, dateTo, cursor, limit = 20 } = dto;
+    const numericId = q && /^\d+$/.test(q) ? Number(q) : undefined;
+    const where: Prisma.UserWhereInput = {
+      role: forcedRole ?? role ?? { in: ['VISITOR', 'SHOP_OWNER'] },
+      ...(cursor && { id: { lt: cursor } }),
+      ...(q && {
+        OR: [
+          ...(numericId ? [{ id: numericId }] : []),
+          { name: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q } },
+        ],
+      }),
+      ...((dateFrom || dateTo) && {
+        createdAt: {
+          ...(dateFrom && { gte: new Date(dateFrom) }),
+          ...(dateTo && { lte: new Date(dateTo) }),
+        },
+      }),
+    };
+    const countWhere = { ...where };
+    delete (countWhere as any).id;
+    const [rows, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        take: limit + 1,
+        select: { id: true, name: true, phone: true, role: true, createdAt: true },
+        orderBy: { id: 'desc' },
+      }),
+      this.prisma.user.count({ where: countWhere }),
+    ]);
+    const hasNextPage = rows.length > limit;
+    const data = hasNextPage ? rows.slice(0, limit) : rows;
+    return {
+      data,
+      pagination: {
+        limit,
+        total,
+        hasNextPage,
+        nextCursor: hasNextPage ? data[data.length - 1].id : null,
+      },
+    };
   }
 
   findOne(id: number) {
@@ -38,12 +76,6 @@ export class UsersService {
     });
   }
 
-  findSellers() {
-    return this.prisma.user.findMany({
-      where: { role: 'SHOP_OWNER' },
-      select: { id: true, name: true, phone: true },
-    });
-  }
   async changePassword(userId: number, newPassword: string) {
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   await this.prisma.user.update({

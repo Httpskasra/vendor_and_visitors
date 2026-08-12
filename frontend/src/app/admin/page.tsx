@@ -12,6 +12,7 @@ import {
   formatDate,
   formatDateTime,
 } from "@/lib/persian";
+import { OrderSearch, UserSearch, useInfiniteOrders, useInfiniteUsers } from "@/components/InfiniteSearch";
 
 type Tab = "upload" | "products" | "orders" | "users";
 
@@ -49,7 +50,6 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("upload");
   const [user, setUser] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
   const [newUser, setNewUser] = useState({
     name: "",
     phone: "",
@@ -66,15 +66,6 @@ export default function AdminDashboard() {
   // useEffect(() => {
   //   if (tab === "users") loadUsers();
   // }, [tab]);
-
-  async function loadUsers() {
-    try {
-      const { data } = await api.get("/users");
-      setUsers(data);
-    } catch {
-      toast.error("خطا در بارگذاری کاربران");
-    }
-  }
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
@@ -117,8 +108,16 @@ export default function AdminDashboard() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // ── Orders state ──────────────────────────────────────────────────────────
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const {
+    orders, loading, loadingMore: loadingMoreOrders, total: filteredOrdersTotal,
+    draft: orderDraft, setDraft: setOrderDraft, apply: applyOrderSearch,
+    reset: resetOrderSearch, refresh: loadOrders, sentinelRef: ordersSentinelRef,
+  } = useInfiniteOrders("/orders", Boolean(user) && tab === "orders");
+  const {
+    users, loading: loadingUsers, loadingMore: loadingMoreUsers, total: filteredUsersTotal,
+    draft: userDraft, setDraft: setUserDraft, apply: applyUserSearch,
+    reset: resetUserSearch, refresh: loadUsers, sentinelRef: usersSentinelRef,
+  } = useInfiniteUsers("/users", Boolean(user) && tab === "users");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [sellerSummary, setSellerSummary] = useState<any[]>([]);
   const [editingItem, setEditingItem] = useState<{
@@ -188,14 +187,7 @@ export default function AdminDashboard() {
       resetAndSearch(searchParams);
     }
 
-    if (tab === "orders") {
-      loadOrders();
-      loadSellerSummary();
-    }
-
-    if (tab === "users") {
-      loadUsers();
-    }
+    if (tab === "orders") loadSellerSummary();
   }, [tab, user]);
   useEffect(() => {
     const u = getUser();
@@ -328,18 +320,6 @@ export default function AdminDashboard() {
   }
 
   // ── Orders ────────────────────────────────────────────────────────────────
-  async function loadOrders() {
-    setLoading(true);
-    try {
-      const { data } = await api.get("/orders");
-      setOrders(data);
-    } catch {
-      toast.error("خطا در بارگذاری سفارشات");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function loadSellerSummary() {
     try {
       const { data } = await api.get("/orders/seller-summary");
@@ -1333,6 +1313,9 @@ export default function AdminDashboard() {
                 📋 مدیریت سفارشات
               </h2>
 
+              <OrderSearch draft={orderDraft} setDraft={setOrderDraft} apply={applyOrderSearch} reset={resetOrderSearch} />
+              {!loading && <p className="mb-3 text-sm text-gray-500">{filteredOrdersTotal.toLocaleString("fa-IR")} نتیجه</p>}
+
               {loading ?
                 <LoadingSpinner />
               : orders.length === 0 ?
@@ -1627,6 +1610,9 @@ export default function AdminDashboard() {
                       </article>
                     );
                   })}
+                  <div ref={ordersSentinelRef} className="py-3 text-center text-sm text-gray-400">
+                    {loadingMoreOrders ? "در حال بارگذاری بیشتر..." : ""}
+                  </div>
                 </div>
               }
             </div>
@@ -1696,7 +1682,10 @@ export default function AdminDashboard() {
                 📋 لیست کاربران
               </h3>
 
-              {users.length === 0 ?
+              <UserSearch draft={userDraft} setDraft={setUserDraft} apply={applyUserSearch} reset={resetUserSearch} />
+              {!loadingUsers && <p className="px-3 pb-3 text-sm text-gray-500 sm:px-5">{filteredUsersTotal.toLocaleString("fa-IR")} نتیجه</p>}
+
+              {loadingUsers ? <LoadingSpinner /> : users.length === 0 ?
                 <EmptyState text="هیچ کاربری یافت نشد" />
               : <>
                   <div className="space-y-3 p-3 md:hidden">
@@ -1791,6 +1780,9 @@ export default function AdminDashboard() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                  <div ref={usersSentinelRef} className="py-3 text-center text-sm text-gray-400">
+                    {loadingMoreUsers ? "در حال بارگذاری بیشتر..." : ""}
                   </div>
                 </>
               }

@@ -9,6 +9,7 @@ import {
   Request,
   UseGuards,
   ForbiddenException,
+  Query,
 } from "@nestjs/common";
 import { OrdersService } from "./orders.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
@@ -17,6 +18,7 @@ import {
   UpdatePaymentDto,
 } from "./dto/update-order-item.dto";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { SearchOrdersDto } from "./dto/search-orders.dto";
 
 @Controller("orders")
 @UseGuards(JwtAuthGuard)
@@ -41,20 +43,20 @@ export class OrdersController {
   @Get()
   @Roles("ADMIN")
   @UseGuards(RolesGuard)
-  findAll() {
-    return this.ordersService.findAll();
+  findAll(@Query() query: SearchOrdersDto) {
+    return this.ordersService.search(query);
   }
 
   @Get("my")
-  myOrders(@Request() req) {
-    return this.ordersService.findByBuyer(req.user.userId);
+  myOrders(@Request() req, @Query() query: SearchOrdersDto) {
+    return this.ordersService.search(query, { buyerId: req.user.userId });
   }
 
   @Get("my-shop-orders")
   @Roles("SHOP_OWNER")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  myShopOrders(@Request() req) {
-    return this.ordersService.findBySeller(req.user.userId);
+  myShopOrders(@Request() req, @Query() query: SearchOrdersDto) {
+    return this.ordersService.search(query, { sellerId: req.user.userId });
   }
 
   @Patch(":id/status")

@@ -32,8 +32,8 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-change-this-database-password}@postgres:5432/${POSTGRES_DB:-ecommerce}?schema=public
       JWT_SECRET: ${JWT_SECRET:-change-this-to-a-long-random-secret}
-      # FRONTEND_URL: http://localhost:3000
-      FRONTEND_URL: http://94.101.184.165:3000
+      FRONTEND_URL: http://localhost:3000
+      # FRONTEND_URL: http://94.101.184.165:3000
     ports:
       - "4000:4000"
     depends_on:
@@ -52,14 +52,6 @@ services:
       - "3000:3000"
     depends_on:
       - backend
-  # mock-api:
-  #   build:
-  #     context: ./mock-api
-  #     dockerfile: Dockerfile
-  #   container_name: ecommerce-mock-api
-  #   restart: unless-stopped
-  #   ports:
-  #     - "4001:4001"
 
 volumes:
   postgres_data:
