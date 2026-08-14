@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { Prisma, Role } from '@prisma/client';
@@ -84,6 +84,30 @@ export class UsersService {
   });
   return { message: 'رمز عبور با موفقیت تغییر کرد' };
 }
+async remove(userId: number) {
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true },
+  });
+
+  if (!user) {
+    throw new NotFoundException('کاربر یافت نشد');
+  }
+  if (user.role === 'ADMIN') {
+    throw new ForbiddenException('حذف حساب ادمین مجاز نیست');
+  }
+
+  const ordersCount = await this.prisma.order.count({
+    where: { OR: [{ userId }, { sellerId: userId }] },
+  });
+  if (ordersCount > 0) {
+    throw new ConflictException('این کاربر دارای سابقه سفارش است و برای حفظ سوابق قابل حذف نیست');
+  }
+
+  await this.prisma.user.delete({ where: { id: userId } });
+  return { success: true, message: 'کاربر با موفقیت حذف شد' };
+}
+
 async createSeller(dto: { name: string; phone: string; password: string }) {
   const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
   if (existing) throw new ConflictException('شماره موبایل قبلاً ثبت شده است');

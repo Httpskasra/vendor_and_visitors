@@ -8,6 +8,7 @@ import {
   Patch,
   Param,
   Query,
+  Delete,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -54,5 +55,12 @@ async createSeller(@Body() dto: CreateSellerDto) {
   @UseGuards(RolesGuard)
   changePassword(@Param("id") id: string, @Body() dto: ChangePasswordDto) {
     return this.usersService.changePassword(+id, dto.newPassword);
+  }
+
+  @Delete(":id")
+  @Roles("ADMIN")
+  @UseGuards(RolesGuard)
+  remove(@Param("id") id: string) {
+    return this.usersService.remove(+id);
   }
 }

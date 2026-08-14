@@ -80,25 +80,15 @@ export class ProductsService {
 
     // ── WHERE ──────────────────────────────────────────────────────
     const where: Prisma.ProductWhereInput = {
-      ...(normalizedName && {
+      ...(compactName && {
         OR: [
           {
             nameNormalized: {
-              contains: normalizedName,
+              contains: compactName,
               mode: "insensitive" as Prisma.QueryMode,
             },
           },
-          // برای نام‌هایی که داخل دیتابیس بدون فاصله ثبت شده‌اند.
-          ...(compactName !== normalizedName
-            ? [
-                {
-                  nameNormalized: {
-                    contains: compactName,
-                    mode: "insensitive" as Prisma.QueryMode,
-                  },
-                },
-              ]
-            : []),
+          // هر دو طرف بدون فاصله مقایسه می‌شوند؛ «چی توز» و «چیتوز» یکسان‌اند.
           {
             AND: nameTokens.map((token) => ({
               nameNormalized: {

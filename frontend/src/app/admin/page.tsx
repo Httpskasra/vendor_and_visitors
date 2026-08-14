@@ -151,6 +151,7 @@ export default function AdminDashboard() {
   const [passwordModalUser, setPasswordModalUser] = useState<any>(null);
   const [newPassword, setNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   async function handleChangePassword(userId: number) {
     if (!newPassword || newPassword.length < 6) {
@@ -167,6 +168,24 @@ export default function AdminDashboard() {
       toast.error(err.response?.data?.message || "خطا در تغییر رمز");
     } finally {
       setChangingPassword(false);
+    }
+  }
+
+  async function handleDeleteUser(currentUser: any) {
+    const confirmed = window.confirm(
+      `آیا از حذف کاربر «${currentUser.name}» مطمئن هستید؟`,
+    );
+    if (!confirmed) return;
+
+    setDeletingUserId(currentUser.id);
+    try {
+      await api.delete(`/users/${currentUser.id}`);
+      toast.success("کاربر با موفقیت حذف شد");
+      await loadUsers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "خطا در حذف کاربر");
+    } finally {
+      setDeletingUserId(null);
     }
   }
 
@@ -1726,6 +1745,13 @@ export default function AdminDashboard() {
                             className="w-full rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 sm:w-auto">
                             تغییر رمز
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(currentUser)}
+                            disabled={deletingUserId === currentUser.id}
+                            className="w-full rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+                            {deletingUserId === currentUser.id ? "در حال حذف..." : "حذف"}
+                          </button>
                         </div>
                       </article>
                     ))}
@@ -1774,6 +1800,13 @@ export default function AdminDashboard() {
                                 }
                                 className="whitespace-nowrap text-sm font-bold text-blue-600 hover:text-blue-800">
                                 تغییر رمز
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUser(currentUser)}
+                                disabled={deletingUserId === currentUser.id}
+                                className="mr-4 whitespace-nowrap text-sm font-bold text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-60">
+                                {deletingUserId === currentUser.id ? "در حال حذف..." : "حذف"}
                               </button>
                             </td>
                           </tr>

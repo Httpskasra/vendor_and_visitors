@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { normalizePersian } from '../../src/utils/persian-normalize';
+import { compactPersian } from '../../src/utils/persian-normalize';
 
 const prisma = new PrismaClient();
 
@@ -10,7 +10,7 @@ async function main() {
 
   let updated = 0;
   for (const product of products) {
-    const normalized = normalizePersian(product.name);
+    const normalized = compactPersian(product.name);
     if (product.nameNormalized !== normalized) {
       await prisma.product.update({
         where: { id: product.id },

@@ -5,7 +5,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import * as XLSX from 'xlsx';
-import { normalizePersian } from '../utils/persian-normalize';
+import { compactPersian } from '../utils/persian-normalize';
 
 interface ExcelRow {
   'نام كالا'?: string;
@@ -196,7 +196,7 @@ export class UploadService {
         }
 
         const normalizedName =
-          normalizePersian(name);
+          compactPersian(name);
 
         if (!normalizedName) {
           return null;
@@ -314,9 +314,9 @@ export class UploadService {
             }
 
             const normalizedName =
-              oldProduct.nameNormalized ||
-              normalizePersian(
-                oldProduct.name,
+              compactPersian(
+                oldProduct.nameNormalized ||
+                  oldProduct.name,
               );
 
             /*

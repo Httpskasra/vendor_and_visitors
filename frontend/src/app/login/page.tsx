@@ -5,11 +5,13 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { setAuth } from "@/lib/auth";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ phone: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,15 +69,25 @@ export default function LoginPage() {
               <label className="block text-lg font-semibold text-gray-700 mb-2">
                 رمز عبور
               </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                className="input-field"
-                value={form.password}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, password: e.target.value }))
-                }
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className="input-field pl-12"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, password: e.target.value }))
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute inset-y-0 left-0 flex w-12 items-center justify-center text-gray-500 hover:text-blue-700"
+                  aria-label={showPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
+                  aria-pressed={showPassword}>
+                  {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
+                </button>
+              </div>
             </div>
             <button
               type="submit"
