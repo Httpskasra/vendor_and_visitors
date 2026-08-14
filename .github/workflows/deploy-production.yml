@@ -175,5 +175,7 @@ jobs:
           EOF_DEPLOY
 
           chmod 600 .deploy.env
+          chmod +x scripts/deploy-production.sh
+          chmod +x scripts/rollback-production.sh
           ./scripts/deploy-production.sh
           REMOTE
