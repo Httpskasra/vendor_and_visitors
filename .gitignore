@@ -27,6 +27,7 @@ node_modules/
 !.env.example
 !.env.sample
 !.env.template
+!.env.production.example
 
 **/.env
 **/.env.*
@@ -307,6 +308,16 @@ notes.local.md
 *.orig
 *.rej
 *.zip
+*.md
 # Do not ignore source maps by default.
 # Uncomment if you do not want source maps committed:
 # *.map
+
+# ---------------------------------------------------------
+# Production CI/CD runtime files
+# ---------------------------------------------------------
+.deploy.env
+.deploy.env.previous
+.deploy.env.failed.*
+certbot/conf/
+certbot/www/

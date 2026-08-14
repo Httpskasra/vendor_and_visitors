@@ -2,8 +2,16 @@
 set -eu
 
 ENV_FILE="${1:-.env.production}"
+DEPLOY_ENV="${2:-.deploy.env}"
+
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE"
+  exit 1
+fi
+
+if [ ! -f "$DEPLOY_ENV" ]; then
+  echo "Missing $DEPLOY_ENV"
+  echo "Create it from .deploy.env.example after the first images are published to GHCR."
   exit 1
 fi
 
@@ -14,10 +22,11 @@ set +a
 : "${DOMAIN:?DOMAIN is required}"
 : "${LETSENCRYPT_EMAIL:?LETSENCRYPT_EMAIL is required}"
 
-COMPOSE="docker compose --env-file $ENV_FILE -f docker-compose.prod.yml"
+COMPOSE="docker compose --env-file $ENV_FILE --env-file $DEPLOY_ENV -f docker-compose.prod.yml"
 
-echo "[1/5] Starting application and HTTP nginx..."
-$COMPOSE up -d --build postgres backend frontend nginx
+echo "[1/5] Pulling images and starting application with HTTP nginx..."
+$COMPOSE pull backend frontend
+$COMPOSE up -d postgres backend frontend nginx
 
 echo "[2/5] Waiting for nginx..."
 sleep 5
