@@ -20,6 +20,8 @@ jobs:
   verify:
     name: Verify application
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_db?schema=public
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
