@@ -12,6 +12,9 @@ jobs:
   backend:
     name: Backend build and Prisma validation
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_db?schema=public
+
     defaults:
       run:
         working-directory: backend
