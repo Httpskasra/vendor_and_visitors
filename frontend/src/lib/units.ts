@@ -16,6 +16,26 @@ export function getTotalStockInPartialUnits(product: any) {
   return getWholeStock(product) * getCountPerUnit(product) + getPartialStock(product);
 }
 
+
+export function getRequestedTotalInPartialUnits(product: any, value: DualQuantity) {
+  const countPerUnit = getCountPerUnit(product);
+  return Math.max(0, Math.trunc(value.whole || 0)) * countPerUnit + Math.max(0, Math.trunc(value.partial || 0));
+}
+
+export function isDualQuantityWithinStock(product: any, value: DualQuantity) {
+  return getRequestedTotalInPartialUnits(product, value) <= getTotalStockInPartialUnits(product);
+}
+
+export function clampDualQuantityToStock(product: any, value: DualQuantity): DualQuantity {
+  const countPerUnit = getCountPerUnit(product);
+  const requestedTotal = getRequestedTotalInPartialUnits(product, value);
+  const allowedTotal = Math.min(requestedTotal, getTotalStockInPartialUnits(product));
+  return {
+    whole: Math.floor(allowedTotal / countPerUnit),
+    partial: allowedTotal % countPerUnit,
+  };
+}
+
 export function normalizeDualQuantity(whole: number, partial: number, countPerUnit: number): DualQuantity {
   const count = Math.max(1, countPerUnit);
   const total = Math.max(0, Math.trunc(whole)) * count + Math.max(0, Math.trunc(partial));
@@ -23,8 +43,13 @@ export function normalizeDualQuantity(whole: number, partial: number, countPerUn
 }
 
 export function calculateDualPrice(product: any, value: DualQuantity) {
-  const price = Number(product.price ?? product.unitPrice ?? 0) || 0;
-  return price * (value.whole + value.partial / getCountPerUnit(product));
+  // In the ordering screens `price` is the price of one partial/single unit.
+  // A whole package (e.g. carton) therefore costs countPerUnit × single-unit price.
+  // This prevents a carton from being calculated cheaper than one item.
+  const singleUnitPrice = Number(product.price ?? product.unitPrice ?? 0) || 0;
+  const countPerUnit = getCountPerUnit(product);
+  const totalSingleUnits = Math.max(0, value.whole) * countPerUnit + Math.max(0, value.partial);
+  return singleUnitPrice * totalSingleUnits;
 }
 
 export function orderItemTotal(item: any) {

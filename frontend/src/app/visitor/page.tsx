@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
 import DualQuantitySelector from "@/components/DualQuantitySelector";
-import { calculateDualPrice, getPartialStock, getWholeStock, type DualQuantity } from "@/lib/units";
+import { calculateDualPrice, clampDualQuantityToStock, getCountPerUnit, getPartialStock, getTotalStockInPartialUnits, getWholeStock, isDualQuantityWithinStock, type DualQuantity } from "@/lib/units";
 import { useInfiniteUsers } from "@/components/InfiniteSearch";
 
 type Step = "select-seller" | "select-products" | "confirm";
@@ -290,10 +290,21 @@ export default function VisitorOrderPage() {
   }
 
   function updateCart(productId: number, value: DualQuantity) {
+    const product = products.find((item) => item.id === productId);
+    const safeValue = product ? clampDualQuantityToStock(product, value) : value;
+
+    if (product && !isDualQuantityWithinStock(product, value)) {
+      const countPerUnit = getCountPerUnit(product);
+      const totalStock = getTotalStockInPartialUnits(product);
+      toast.error(
+        `مقدار درخواستی بیشتر از موجودی است. حداکثر موجودی معادل ${Math.floor(totalStock / countPerUnit).toLocaleString("fa-IR")} ${product.unitType || "واحد کلی"} و ${(totalStock % countPerUnit).toLocaleString("fa-IR")} ${product.subUnitType || "واحد جزئی"} است.`,
+      );
+    }
+
     setCart((current) => {
       const next = { ...current };
-      if (value.whole === 0 && value.partial === 0) delete next[productId];
-      else next[productId] = value;
+      if (safeValue.whole === 0 && safeValue.partial === 0) delete next[productId];
+      else next[productId] = safeValue;
       return next;
     });
   }
@@ -320,6 +331,18 @@ export default function VisitorOrderPage() {
     if (selectedProductsCount === 0) {
       toast.error("لطفاً حداقل یک محصول انتخاب کنید");
       setStep("select-products");
+      return;
+    }
+
+    const invalidItem = Object.entries(cart).find(([productId, value]) => {
+      const product = products.find((item) => item.id === Number(productId));
+      return product ? !isDualQuantityWithinStock(product, value) : false;
+    });
+
+    if (invalidItem) {
+      const [productId] = invalidItem;
+      const product = products.find((item) => item.id === Number(productId));
+      toast.error(`مقدار سفارش «${product?.name || "محصول"}» از موجودی کل بیشتر است. لطفاً تعداد را اصلاح کنید.`);
       return;
     }
 
@@ -916,7 +939,7 @@ export default function VisitorOrderPage() {
 
                           <div className="mt-4 flex items-end justify-between gap-3 border-t border-gray-100 pt-4">
                             <div>
-                              <p className="text-xs text-gray-400">قیمت واحد کلی ({product.unitType || "کلی"})</p>
+                              <p className="text-xs text-gray-400">قیمت هر {product.subUnitType || "واحد جزئی"}</p>
                               <p className="mt-1 text-lg font-black text-blue-700">
                                 {Number(product.price || 0).toLocaleString(
                                   "fa-IR",
