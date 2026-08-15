@@ -40,9 +40,9 @@ export default function DualQuantitySelector({ product, value, onChange, accent 
         <span className="text-left text-gray-500">{stockText}</span>
       </div>
       <div className="flex h-10 items-center overflow-hidden rounded-lg bg-white">
-        <button type="button" className="h-full w-11 text-xl font-bold text-red-600" onClick={() => setter(current - 1)}>−</button>
+        <button type="button" className="h-full w-10 text-xl font-bold text-red-600" onClick={() => setter(current - 1)}>−</button>
         <input type="number" min={0} max={max} value={current} onChange={(e) => setter(Number(e.target.value) || 0)} className="h-full min-w-0 flex-1 border-0 bg-transparent text-center font-black outline-none" />
-        <button type="button" disabled={current >= max} className="h-full w-11 text-xl font-bold text-green-700 disabled:opacity-30" onClick={() => setter(current + 1)}>＋</button>
+        <button type="button" disabled={current >= max} className="h-full w-8 text-xl font-bold text-green-700 disabled:opacity-30" onClick={() => setter(current + 1)}>＋</button>
       </div>
     </div>
   );
