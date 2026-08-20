@@ -1,57 +1,89 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ecommerce-postgres
+    container_name: fattahi-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-ecommerce}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-database-password}
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ecommerce}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+    networks:
+      - app_net
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: ecommerce-backend
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-change-this-database-password}@postgres:5432/${POSTGRES_DB:-ecommerce}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-long-random-secret}
-      FRONTEND_URL: http://localhost:3000
-      # FRONTEND_URL: http://94.101.184.165:3000
-    ports:
-      - "4000:4000"
-    depends_on:
-      postgres:
-        condition: service_healthy
+  # backend:
+  #   image: ${BACKEND_IMAGE}:${IMAGE_TAG}
+  #   container_name: fattahi-backend
+  #   restart: unless-stopped
+  #   environment:
+  #     NODE_ENV: production
+  #     PORT: 4000
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     JWT_SECRET: ${JWT_SECRET}
+  #     FRONTEND_URL: https://${DOMAIN}
+  #   expose:
+  #     - "4000"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - app_net
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ecommerce-frontend
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
+  # frontend:
+  #   image: ${FRONTEND_IMAGE}:${IMAGE_TAG}
+  #   container_name: fattahi-frontend
+  #   restart: unless-stopped
+  #   environment:
+  #     NODE_ENV: production
+  #   expose:
+  #     - "3000"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - app_net
+
+  # nginx:
+  #   image: nginx:1.27-alpine
+  #   container_name: fattahi-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/conf.d:/etc/nginx/conf.d:ro
+  #     - ./certbot/www:/var/www/certbot:ro
+  #     - ./certbot/conf:/etc/letsencrypt:ro
+  #   depends_on:
+  #     - frontend
+  #     - backend
+  #   networks:
+  #     - app_net
+  #   command: >-
+  #     /bin/sh -c "nginx -g 'daemon off;' & pid=$$!;
+  #     while :; do sleep 6h & wait $$!; nginx -s reload; done &
+  #     wait $$pid"
+
+  # certbot:
+  #   image: certbot/certbot:latest
+  #   container_name: fattahi-certbot
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./certbot/www:/var/www/certbot
+  #     - ./certbot/conf:/etc/letsencrypt
+  #   entrypoint: /bin/sh
+  #   command: -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $$!; done"
+  #   networks:
+  #     - app_net
 
 volumes:
   postgres_data:
+
+networks:
+  app_net:
+    driver: bridge

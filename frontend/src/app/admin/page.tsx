@@ -1466,7 +1466,7 @@ export default function AdminDashboard() {
                                               <input type="number" min="0" className="input-field w-full py-2" value={editingItem.partialQuantity} onChange={(e) => setEditingItem((previous) => previous ? { ...previous, partialQuantity: Number(e.target.value) } : null)} />
 
                                               <label className="text-sm font-semibold text-gray-600">
-                                                قیمت واحد
+                                                قیمت واحد کلی
                                               </label>
                                               <input
                                                 type="number"
@@ -1516,7 +1516,7 @@ export default function AdminDashboard() {
                                                 کلی: {item.wholeQuantity ?? item.quantity} {item.wholeUnitType || ""} | جزئی: {item.partialQuantity ?? 0} {item.partialUnitType || ""}
                                               </span>
                                               <span className="rounded-lg bg-white px-2 py-2">
-                                                قیمت واحد:{" "}
+                                                قیمت واحد کلی:{" "}
                                                 {item.unitPrice?.toLocaleString()}{" "}
                                                 ریال
                                               </span>

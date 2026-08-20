@@ -309,7 +309,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
 
             <Text style={styles.colQty}>{rtlText("تعداد")}</Text>
 
-            <Text style={styles.colPrice}>{rtlText("قیمت واحد")}</Text>
+            <Text style={styles.colPrice}>{rtlText("قیمت واحد کلی")}</Text>
 
             <Text style={styles.colTotal}>{rtlText("جمع")}</Text>
           </View>

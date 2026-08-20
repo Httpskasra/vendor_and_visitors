@@ -682,7 +682,7 @@ export default function SellerOrderPage() {
 
                       <div className="mt-4 flex items-end justify-between gap-3 border-t border-gray-100 pt-4">
                         <div>
-                          <p className="text-xs text-gray-400">قیمت هر {product.subUnitType || "واحد جزئی"}</p>
+                          <p className="text-xs text-gray-400">قیمت هر {product.unitType || "واحد کلی"}</p>
                           <p className="mt-1 text-lg font-black text-amber-700">
                             {Number(product.price || 0).toLocaleString("fa-IR")}
                             <span className="mr-1 text-xs font-medium text-gray-500">
