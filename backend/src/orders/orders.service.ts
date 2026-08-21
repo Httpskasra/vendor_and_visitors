@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import { SearchOrdersDto } from './dto/search-orders.dto';
 
 function lineTotal(unitPrice: number, whole: number, partial: number, countPerUnit: number) {
-  return unitPrice * (whole + partial / Math.max(1, countPerUnit));
+  return unitPrice * (whole * Math.max(1, countPerUnit) + partial);
 }
 
 @Injectable()

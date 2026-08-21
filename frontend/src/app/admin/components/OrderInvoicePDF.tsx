@@ -309,7 +309,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
 
             <Text style={styles.colQty}>{rtlText("تعداد")}</Text>
 
-            <Text style={styles.colPrice}>{rtlText("قیمت واحد کلی")}</Text>
+            <Text style={styles.colPrice}>{rtlText("قیمت واحد تکی")}</Text>
 
             <Text style={styles.colTotal}>{rtlText("جمع")}</Text>
           </View>
@@ -329,7 +329,7 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
               </Text>
 
               <Text style={styles.colTotal}>
-                {rtlText(`${formatPrice(item.unitPrice * ((item.wholeQuantity ?? item.quantity ?? 0) + (item.partialQuantity ?? 0) / Math.max(1, item.countPerUnit ?? 1)))} ریال`)}
+                {rtlText(`${formatPrice(item.unitPrice * ((item.wholeQuantity ?? item.quantity ?? 0) * Math.max(1, item.countPerUnit ?? 1) + (item.partialQuantity ?? 0)))} ریال`)}
               </Text>
             </View>
           ))}

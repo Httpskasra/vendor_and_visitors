@@ -339,7 +339,7 @@ export default function SellerDashboard() {
 
                                         <div className="rounded-xl bg-blue-50 px-3 py-2 text-center text-blue-700">
                                           <p className="text-[11px] font-medium text-blue-500 sm:text-xs">
-                                            قیمت واحد کلی
+                                            قیمت واحد تکی
                                           </p>
                                           <p className="mt-0.5 font-bold">
                                             {formatPrice(unitPrice)}

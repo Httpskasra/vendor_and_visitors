@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js",
-    "products:normalize": "ts-node prisma/scripts/backfill-product-normalized-names.ts"
+    "products:normalize": "ts-node prisma/scripts/backfill-product-normalized-names.ts",
+    "orders:recalculate-totals": "ts-node prisma/scripts/recalculate-order-totals.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

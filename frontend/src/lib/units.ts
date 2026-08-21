@@ -56,5 +56,5 @@ export function orderItemTotal(item: any) {
   const whole = Number(item.wholeQuantity ?? item.quantity ?? 0) || 0;
   const partial = Number(item.partialQuantity ?? 0) || 0;
   const count = Math.max(1, Number(item.countPerUnit ?? 1) || 1);
-  return Number(item.unitPrice ?? 0) * (whole + partial / count);
+  return Number(item.unitPrice ?? 0) * (whole * count + partial);
 }

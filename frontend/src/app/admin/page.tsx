@@ -1170,7 +1170,7 @@ export default function AdminDashboard() {
                       <label className="text-sm font-bold text-gray-700">تعداد جزئی در هر واحد کلی
                         <input type="number" min="1" className="input-field mt-1 w-full" value={editForm.countPerUnit} onChange={(e) => setEditForm({ ...editForm, countPerUnit: Number(e.target.value) })} />
                       </label>
-                      <label className="text-sm font-bold text-gray-700">قیمت واحد کلی (ریال)
+                      <label className="text-sm font-bold text-gray-700">قیمت واحد تکی (ریال)
                         <input type="number" min="0" className="input-field mt-1 w-full" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })} />
                       </label>
                       <label className="text-sm font-bold text-gray-700">موجودی کلی
@@ -1466,7 +1466,7 @@ export default function AdminDashboard() {
                                               <input type="number" min="0" className="input-field w-full py-2" value={editingItem.partialQuantity} onChange={(e) => setEditingItem((previous) => previous ? { ...previous, partialQuantity: Number(e.target.value) } : null)} />
 
                                               <label className="text-sm font-semibold text-gray-600">
-                                                قیمت واحد کلی
+                                                قیمت واحد تکی
                                               </label>
                                               <input
                                                 type="number"
@@ -1516,7 +1516,7 @@ export default function AdminDashboard() {
                                                 کلی: {item.wholeQuantity ?? item.quantity} {item.wholeUnitType || ""} | جزئی: {item.partialQuantity ?? 0} {item.partialUnitType || ""}
                                               </span>
                                               <span className="rounded-lg bg-white px-2 py-2">
-                                                قیمت واحد کلی:{" "}
+                                                قیمت واحد تکی:{" "}
                                                 {item.unitPrice?.toLocaleString()}{" "}
                                                 ریال
                                               </span>
