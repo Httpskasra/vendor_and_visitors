@@ -43,16 +43,13 @@ export function normalizeDualQuantity(whole: number, partial: number, countPerUn
 }
 
 export function calculateDualPrice(product: any, value: DualQuantity) {
-  // `price` / `unitPrice` is the price of ONE WHOLE unit (e.g. one carton/shell).
-  // Therefore:
-  //   whole quantity   => whole * wholeUnitPrice
-  //   partial quantity => partial * (wholeUnitPrice / countPerUnit)
-  // This is the same pricing model used by the backend and saved OrderItem records.
-  const wholeUnitPrice = Number(product.price ?? product.unitPrice ?? 0) || 0;
+  // In the ordering screens `price` is the price of one partial/single unit.
+  // A whole package (e.g. carton) therefore costs countPerUnit × single-unit price.
+  // This prevents a carton from being calculated cheaper than one item.
+  const singleUnitPrice = Number(product.price ?? product.unitPrice ?? 0) || 0;
   const countPerUnit = getCountPerUnit(product);
-  const whole = Math.max(0, Number(value.whole) || 0);
-  const partial = Math.max(0, Number(value.partial) || 0);
-  return wholeUnitPrice * (whole + partial / countPerUnit);
+  const totalSingleUnits = Math.max(0, value.whole) * countPerUnit + Math.max(0, value.partial);
+  return singleUnitPrice * totalSingleUnits;
 }
 
 export function orderItemTotal(item: any) {
