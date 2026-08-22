@@ -144,8 +144,9 @@ const styles = StyleSheet.create({
 
   colQty: {
     width: "15%",
-    textAlign: "center",
+    textAlign: "right",
     fontSize: 10,
+    direction: "rtl",
   },
 
   colPrice: {
@@ -321,7 +322,9 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
               </Text>
 
               <Text style={styles.colQty}>
-                {rtlText(`${item.wholeQuantity ?? item.quantity ?? 0} ${item.wholeUnitType || "کلی"} + ${item.partialQuantity ?? 0} ${item.partialUnitType || "جزئی"}`)}
+                {rtlText(
+                  `${item.wholeQuantity ?? item.quantity ?? 0} ${item.wholeUnitType || "کلی"}، ${item.partialQuantity ?? 0} ${item.partialUnitType || "جزئی"}`,
+                )}
               </Text>
 
               <Text style={styles.colPrice}>
@@ -329,7 +332,9 @@ export function OrderInvoicePDF({ order }: OrderInvoiceProps) {
               </Text>
 
               <Text style={styles.colTotal}>
-                {rtlText(`${formatPrice(item.unitPrice * ((item.wholeQuantity ?? item.quantity ?? 0) * Math.max(1, item.countPerUnit ?? 1) + (item.partialQuantity ?? 0)))} ریال`)}
+                {rtlText(
+                  `${formatPrice(item.unitPrice * ((item.wholeQuantity ?? item.quantity ?? 0) * Math.max(1, item.countPerUnit ?? 1) + (item.partialQuantity ?? 0)))} ریال`,
+                )}
               </Text>
             </View>
           ))}
